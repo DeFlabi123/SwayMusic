@@ -1,0 +1,141 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Metrolist.Desktop.ViewModels"
+        xmlns:core="using:Metrolist.Core"
+        xmlns:storage="using:Metrolist.Core.Storage"
+        x:Class="Metrolist.Desktop.MainWindow" x:DataType="vm:MainViewModel"
+        Title="Metrolist" Width="1120" Height="760" MinWidth="850" MinHeight="600"
+        Background="#111318" Icon="/Assets/metrolist.png">
+  <Grid RowDefinitions="*,Auto,Auto">
+    <Grid ColumnDefinitions="178,*">
+      <Border Background="#191B22" Padding="14,24,14,12">
+        <DockPanel LastChildFill="True">
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,22">
+            <Image Source="/Assets/metrolist.png" Width="46" Height="46" HorizontalAlignment="Left"/>
+            <TextBlock Text="Metrolist" FontSize="23" FontWeight="SemiBold" Margin="4,9,0,0"/>
+            <TextBlock Text="FOR WINDOWS" FontSize="10" LetterSpacing="1.6" Classes="muted" Margin="5,4,0,0"/>
+          </StackPanel>
+          <StackPanel DockPanel.Dock="Bottom">
+            <Button Content="Open audio files" Click="OpenFilesClicked" Classes="nav"/>
+            <Button Content="Settings &amp; account" Command="{Binding SettingsCommand}" Classes="nav"/>
+            <TextBlock Text="Native · lightweight" Classes="muted" FontSize="11" Margin="12,18,0,0"/>
+          </StackPanel>
+          <StackPanel>
+            <Button Content="Home" Command="{Binding HomeCommand}" Classes="nav"/>
+            <Button Content="Liked songs" Command="{Binding LikesCommand}" Classes="nav"/>
+            <Button Content="Playlists" Command="{Binding PlaylistsCommand}" Classes="nav"/>
+            <Button Content="Downloads" Command="{Binding DownloadsCommand}" Classes="nav"/>
+            <Button Content="Listening history" Command="{Binding HistoryCommand}" Classes="nav"/>
+            <Button Content="Queue" Command="{Binding QueueCommand}" Classes="nav"/>
+            <Button Content="Lyrics" Command="{Binding LyricsCommand}" Classes="nav"/>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="26,22,26,18">
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
+          <TextBox x:Name="SearchBox" Text="{Binding Query}" PlaceholderText="Search YouTube Music, or paste a playlist URL" KeyDown="SearchKeyDown"/>
+          <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" Margin="9,0,0,0" Classes="accent"/>
+        </Grid>
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto" Margin="0,0,0,14">
+          <TextBlock Text="{Binding PageTitle}" FontSize="28" FontWeight="SemiBold"/>
+          <TextBlock Grid.Row="1" Text="{Binding PageSubtitle}" Classes="muted" Margin="0,5,0,0" TextWrapping="Wrap"/>
+        </Grid>
+        <Grid Grid.Row="2">
+          <Grid IsVisible="{Binding ShowTracks}" RowDefinitions="Auto,Auto,*,Auto">
+            <WrapPanel Margin="0,0,0,10">
+              <Button Content="Play" Command="{Binding PlaySelectedCommand}" Margin="0,0,6,6" Classes="accent"/>
+              <Button Content="Add to queue" Command="{Binding EnqueueCommand}" Margin="0,0,6,6"/>
+              <Button Content="Like / unlike" Command="{Binding LikeCommand}" Margin="0,0,6,6"/>
+              <Button Content="Radio" Command="{Binding RadioCommand}" Margin="0,0,6,6"/>
+              <Button Content="Download" Command="{Binding DownloadCommand}" Margin="0,0,6,6"/>
+              <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="0,0,6,6"/>
+              <Button Content="↑" Command="{Binding MoveUpCommand}" IsVisible="{Binding IsQueue}" Margin="0,0,6,6"/>
+              <Button Content="↓" Command="{Binding MoveDownCommand}" IsVisible="{Binding IsQueue}" Margin="0,0,6,6"/>
+            </WrapPanel>
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10" IsVisible="{Binding HasPlaylists}">
+              <ComboBox ItemsSource="{Binding Playlists}" SelectedItem="{Binding SelectedPlaylist}" PlaceholderText="Choose local playlist" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate><DataTemplate x:DataType="storage:LocalPlaylist"><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Grid.Column="1" Content="Open" Command="{Binding OpenPlaylistCommand}" Margin="8,0,0,0"/>
+              <Button Grid.Column="2" Content="Add selected song" Command="{Binding AddToPlaylistCommand}" Margin="8,0,0,0"/>
+            </Grid>
+            <ListBox Grid.Row="2" x:Name="TrackList" ItemsSource="{Binding Tracks}" SelectedItem="{Binding SelectedTrack}" DoubleTapped="TrackDoubleTapped" Background="Transparent" BorderThickness="0">
+              <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:TrackRow">
+                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Row="1" Text="{Binding Artist}" Classes="muted" FontSize="12" Margin="0,4,15,0" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Duration}" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" Grid.RowSpan="2"/>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <Button Grid.Row="3" Content="Load more" Command="{Binding MoreCommand}" IsVisible="{Binding HasMore}" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+          </Grid>
+          <Grid IsVisible="{Binding ShowBrowse}" RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,14" IsVisible="{Binding ShowCreatePlaylist}">
+              <TextBox Text="{Binding NewPlaylistName}" PlaceholderText="Playlist name"/>
+              <Button Grid.Column="1" Content="Create" Command="{Binding CreatePlaylistCommand}" Margin="8,0,0,0"/>
+              <Button Grid.Column="2" Content="Rename" Command="{Binding RenamePlaylistCommand}" Margin="8,0,0,0"/>
+              <Button Grid.Column="3" Content="Delete" Click="DeletePlaylistClicked" Margin="8,0,0,0"/>
+            </Grid>
+            <ListBox Grid.Row="1" ItemsSource="{Binding BrowseItems}" SelectedItem="{Binding SelectedBrowseItem}" DoubleTapped="BrowseDoubleTapped" Background="Transparent">
+              <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+              <ListBox.ItemTemplate><DataTemplate x:DataType="core:BrowseItem"><StackPanel><TextBlock Text="{Binding Title}" FontWeight="Medium"/><TextBlock Text="{Binding Subtitle}" Classes="muted" FontSize="12" Margin="0,4,0,0"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+          <ScrollViewer IsVisible="{Binding ShowSettings}" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12" MaxWidth="650" HorizontalAlignment="Left">
+              <TextBlock Text="Account" FontSize="19" FontWeight="SemiBold"/>
+              <TextBlock Text="Sign in to YouTube Music in your browser, then import the Cookie request header. Credentials are encrypted for your Windows user. Never share them." TextWrapping="Wrap" Classes="muted"/>
+              <Button Content="Open YouTube Music" Click="OpenBrowserClicked" HorizontalAlignment="Left"/>
+              <TextBox Text="{Binding CookieInput}" PasswordChar="●" PlaceholderText="Paste Cookie header" MaxLength="32768"/>
+              <WrapPanel><Button Content="Save account" Command="{Binding SaveAccountCommand}" Margin="0,0,8,0"/><Button Content="Sign out" Command="{Binding SignOutCommand}"/></WrapPanel>
+              <TextBlock Text="{Binding AccountStatus}" Classes="muted"/>
+              <TextBlock Text="Playback &amp; storage" FontSize="19" FontWeight="SemiBold" Margin="0,12,0,0"/>
+              <CheckBox Content="Fetch lyrics when opening the lyrics page" IsChecked="{Binding FetchLyrics}"/>
+              <Grid ColumnDefinitions="*,*"><StackPanel><TextBlock Text="Country (ISO code)"/><TextBox Text="{Binding Country}" MaxLength="2" Margin="0,6,10,0"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="Language"/><TextBox Text="{Binding Language}" MaxLength="10" Margin="0,6,0,0"/></StackPanel></Grid>
+              <TextBlock Text="Download storage limit (MiB). Existing downloads are kept. Remove tracks to free space; the limit applies to new downloads." TextWrapping="Wrap" Classes="muted"/>
+              <NumericUpDown Value="{Binding DownloadBudgetMiB}" Minimum="64" Maximum="1048576" Increment="256" FormatString="0"/>
+              <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" HorizontalAlignment="Left"/>
+              <TextBlock Text="Keyboard: Space play/pause · Ctrl+F search · Ctrl+O open files · Ctrl+Right/Left next/previous · Left/Right seek 5 s" TextWrapping="Wrap" Classes="muted" Margin="0,12,0,0"/>
+              <TextBlock Text="GPL-3.0 · Metrolist Project and contributors. Independent native Windows port. Online availability depends on YouTube Music; service errors appear below." TextWrapping="Wrap" Classes="muted" FontSize="11"/>
+            </StackPanel>
+          </ScrollViewer>
+          <Grid IsVisible="{Binding ShowLyrics}" RowDefinitions="Auto,*">
+            <TextBlock Text="{Binding ActiveLyric}" FontSize="21" Foreground="#D1BEFF" TextWrapping="Wrap" Margin="0,0,0,18"/>
+            <ScrollViewer Grid.Row="1"><TextBlock Text="{Binding LyricsText}" TextWrapping="Wrap" FontSize="17" LineHeight="29"/></ScrollViewer>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Grid>
+    <Border Grid.Row="1" Background="#25222E" Padding="16,8" IsVisible="{Binding HasStatus}">
+      <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"/><Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding Busy}" Margin="12,0,0,0"/></Grid>
+    </Border>
+    <Border Grid.Row="2" Background="#1B1D25" BorderBrush="#30333E" BorderThickness="0,1,0,0" Padding="18,13">
+      <Grid ColumnDefinitions="230,*,180" RowDefinitions="Auto,Auto">
+        <Grid ColumnDefinitions="52,*" Margin="0,0,15,0" Grid.RowSpan="2">
+          <Image Source="{Binding Artwork}" Width="44" Height="44" Stretch="UniformToFill"/>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="{Binding NowTitle}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding NowArtist}" Classes="muted" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+        </Grid>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+          <ToggleButton Content="Shuffle" IsChecked="{Binding Shuffle}" Padding="8,5"/>
+          <Button Content="|◀" Command="{Binding PreviousCommand}" Padding="10,5" ToolTip.Tip="Previous"/>
+          <Button Content="{Binding PlayButtonText}" Command="{Binding ToggleCommand}" Padding="17,5" Classes="accent"/>
+          <Button Content="▶|" Command="{Binding NextCommand}" Padding="10,5" ToolTip.Tip="Next"/>
+          <Button Content="{Binding RepeatText}" Command="{Binding RepeatCommand}" Padding="8,5"/>
+        </StackPanel>
+        <Grid Grid.Column="1" Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+          <TextBlock Text="{Binding PositionText}" Classes="muted" VerticalAlignment="Center" FontSize="11"/>
+          <Slider Grid.Column="1" x:Name="SeekSlider" Minimum="0" Maximum="{Binding DurationSeconds}" Value="{Binding PositionSeconds, Mode=OneWay}" PointerPressed="SeekPressed" PointerReleased="SeekReleased" KeyUp="SeekKeyUp" Margin="8,0"/>
+          <TextBlock Grid.Column="2" Text="{Binding DurationText}" Classes="muted" VerticalAlignment="Center" FontSize="11"/>
+        </Grid>
+        <StackPanel Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center" Margin="18,0,0,0">
+          <TextBlock Text="Volume" Classes="muted" FontSize="11"/>
+          <Slider Minimum="0" Maximum="100" Value="{Binding Volume}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

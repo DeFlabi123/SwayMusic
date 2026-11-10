@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+.dotnet/
+.nuget/
+artifacts/
+tools/*.exe
+.templateengine/
+.sdk/
+.sdk-cache/
+*.user

@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\schmi\\Desktop\\Metrolist pc\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{2BEAEC96-9DB5-15EB-9C70-1FECAA211FD0}|src\\Metrolist.Desktop\\Metrolist.Desktop.csproj|c:\\users\\schmi\\desktop\\metrolist pc\\src\\metrolist.desktop\\metrolist.desktop.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{2BEAEC96-9DB5-15EB-9C70-1FECAA211FD0}|src\\Metrolist.Desktop\\Metrolist.Desktop.csproj|solutionrelative:src\\metrolist.desktop\\metrolist.desktop.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Metrolist.Desktop",
+              "DocumentMoniker": "C:\\Users\\schmi\\Desktop\\Metrolist pc\\src\\Metrolist.Desktop\\Metrolist.Desktop.csproj",
+              "RelativeDocumentMoniker": "src\\Metrolist.Desktop\\Metrolist.Desktop.csproj",
+              "ToolTip": "C:\\Users\\schmi\\Desktop\\Metrolist pc\\src\\Metrolist.Desktop\\Metrolist.Desktop.csproj",
+              "RelativeToolTip": "src\\Metrolist.Desktop\\Metrolist.Desktop.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAABBAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-11-09T20:21:23.663Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
