@@ -6,7 +6,7 @@
 
 Playback now first uses Metrolist's visitor-backed native extraction fast path. Public initialization data is warmed asynchronously and cached for three hours; different new songs reuse the same HTTP connections and configuration. The existing next-song preparation and expiry-aware URL cache remain. yt-dlp/QuickJS are retained for streams the native path cannot resolve. See `docs/native-extraction.md` for measured latency and scope.
 
-Extract `SwayMusic-win-x64.zip` and open `SwayMusic.exe`. From the source workspace, the executable is in `artifacts/SwayMusic-win-x64/`. Keep its supporting files and `tools` directory together. The self-contained release includes .NET; the smaller framework-dependent release requires the .NET 10 x64 runtime. No installer or administrator rights are required to run the app.
+Open `artifacts/SwayMusic-win-x64/SwayMusic.exe`. This is the single current release folder. Keep its supporting files and `tools` directory together. The release includes .NET; no installer or administrator rights are required. If an archive is explicitly requested, extract it before opening the executable.
 
 Search YouTube Music, double-click a track to play, or open local AAC/M4A, MP3, WAV, FLAC and other Windows-supported audio. Paste a YouTube Music playlist URL into Search to browse its songs. Home loads online recommendations when selected; startup restores the local session without starting playback or blocking on the network. The queue, shuffle/repeat, volume, seeking, offline downloads, local playlists, liked songs, history and LRCLIB lyrics are available from the window. Windows media controls expose metadata and transport actions.
 
@@ -28,7 +28,6 @@ Install .NET SDK 10.0.404 (or a later patch in that feature band), or run `scrip
 .\scripts\Build.ps1 -Headless
 .\scripts\Build.ps1 -Desktop
 .\scripts\Publish.ps1
-.\scripts\Publish.ps1 -FrameworkDependent
 ```
 
 `-Test` exercises offline invariants; `-Audio` checks real Windows decoding, output, seeking and SMTC at zero volume; `-Live` checks real public YouTube Music requests, streaming and offline downloads; `-Headless` checks the Avalonia control tree without desktop input. `-Desktop` opens an isolated native window briefly, samples resources and closes it automatically. Test dependencies stay out of the release. Live tests need network access and can fail when YouTube changes or blocks the local network. Tests are an executable harness that returns nonzero on failure.
@@ -39,4 +38,4 @@ Keyboard: Space toggles playback, Ctrl+F focuses search, Ctrl+O opens files, Ctr
 
 See FEATURES.md for explicit parity gaps, PROGRESS.md for verification and measurements, and docs/architecture.md for source analysis and architecture. This port is GPL-3.0; include its source when distributing it as required by the license. Original Metrolist project and contributors retain their attribution.
 
-`scripts/Verify-Release.ps1 -Directory artifacts/SwayMusic-win-x64` checks the actual published executable. `scripts/Source-Archive.ps1` creates `SwayMusic-Windows-source.zip`, including source, design assets and notices.
+Publishing updates the same `artifacts/SwayMusic-win-x64` folder and gracefully closes a running workspace instance first. Archives are created only when explicitly requested with `Publish.ps1 -Archive` or `Source-Archive.ps1`. `scripts/Verify-Release.ps1 -Directory artifacts/SwayMusic-win-x64` checks the actual published executable.

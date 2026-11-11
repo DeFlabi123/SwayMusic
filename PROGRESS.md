@@ -2,6 +2,8 @@
 
 Windows repository: `C:\Users\schmi\Documents\GitHub\SwayMusic`. The supplied Metrolist Android tree remains read-only and its attribution is retained.
 
+Current packaging policy: keep one release folder, `artifacts/SwayMusic-win-x64`, containing the newest self-contained build. Duplicate releases, source/binary archives and temporary test outputs have been removed from artifacts. Publishing reuses this folder and may gracefully close the running workspace app, as authorized by the user. Earlier artifact names and test-log references below describe historical validation outputs.
+
 ## Playback startup delay
 
 The newer native extraction path is documented in `docs/native-extraction.md`: three different uncached songs resolved in 265–325 ms, with a 42.86-second deterministic/native/live regression pass. The helper-based timings below are the earlier baseline. The direct path now shares and persists public bootstrap metadata, warms it asynchronously, and quarantines failed clients while retaining the helper fallback.
