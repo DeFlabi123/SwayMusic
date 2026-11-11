@@ -1,4 +1,4 @@
-param([switch]$FrameworkDependent, [switch]$SkipTools)
+param([switch]$FrameworkDependent, [switch]$SkipTools, [ValidatePattern('^[a-z0-9-]*$')][string]$Suffix = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $projectRoot
@@ -13,6 +13,7 @@ try {
     }
     if (!$SkipTools) { & (Join-Path $PSScriptRoot 'Get-StreamTools.ps1') }
     $folderName = if ($FrameworkDependent) { 'SwayMusic-win-x64-framework-dependent' } else { 'SwayMusic-win-x64' }
+    if ($Suffix) { $folderName += '-' + $Suffix }
     $publishDirectory = Join-Path $projectRoot "artifacts\$folderName"
     $selfContained = if ($FrameworkDependent) { 'false' } else { 'true' }
     & $dotnetCommand publish src\SwayMusic.Desktop\SwayMusic.Desktop.csproj -c Release -r win-x64 --self-contained $selfContained --output $publishDirectory --packages .nuget\packages -p:DebugType=None -p:DebugSymbols=false

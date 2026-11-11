@@ -9,7 +9,7 @@ using System.Text.Json.Nodes;
 namespace SwayMusic.Core.Networking;
 
 /// <summary>Desktop adaptation of Metrolist's InnerTube facade and renderer parsing.</summary>
-public sealed partial class YouTubeMusicClient(HttpClient http)
+public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publicPlaybackHttp = null) : IDisposable
 {
     private const string Origin = "https://music.youtube.com";
     private const string WebUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
@@ -75,7 +75,11 @@ public sealed partial class YouTubeMusicClient(HttpClient http)
 
     public void InvalidateStream(string trackId)
     {
-        lock (_cacheLock) _streams.Remove(trackId);
+        lock (_cacheLock)
+        {
+            _streams.Remove(trackId);
+            if (_nativeVideos.Remove(trackId)) _nativeRetryAt = DateTimeOffset.UtcNow.AddMinutes(2);
+        }
     }
 
     public async Task<MusicPage> SearchAsync(string query, CancellationToken ct = default)
@@ -157,6 +161,8 @@ public sealed partial class YouTubeMusicClient(HttpClient http)
 
     private async Task<StreamInfo> ResolveStreamAsync(Track track, CancellationToken ct)
     {
+        if (EnableNativePlayback && await TryNativePlaybackAsync(track.Id, ct).ConfigureAwait(false) is { } native) return native;
+        LastResolutionPath = "web-or-helper";
         string? reason = null;
         try
         {

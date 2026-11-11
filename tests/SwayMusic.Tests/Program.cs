@@ -36,6 +36,7 @@ try
     }
     var watch = Stopwatch.StartNew();
     await NetworkTests.RunAsync();
+    await NativeResolverTests.RunAsync();
     await AccountNetworkTests.RunAsync();
     await BrowserLoginTests.RunAsync();
     Console.WriteLine("PASS API request/authentication, renderer parsing, continuation, retry, stream validation");

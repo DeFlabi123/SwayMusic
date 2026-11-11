@@ -62,7 +62,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _migrateLegacy = dataDirectory is null;
         _credentials = new(dataDirectory);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/1.0");
-        _music = new(_http);
+        _music = new(_http) { EnableNativePlayback = true, PlaybackCacheDirectory = Path.Combine(_library.DataDirectory, "player-cache") };
         _lyrics = new(_http, dataDirectory);
         _downloads = new(_http, _library.DataDirectory, 2L * 1024 * 1024 * 1024);
         _sourcePrefetch = new(ResolveAsync);
@@ -234,6 +234,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
             RefreshHomeCards();
             IsReady = true;
+            if (_migrateLegacy) TrackBackground(_music.PrewarmPlaybackAsync(_lifetime.Token));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { ReportError(ex); }
@@ -734,7 +735,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             Artwork?.Dispose();
             ClearHomeCards();
-            _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _http.Dispose();
+            _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _music.Dispose(); _http.Dispose();
             _pageRequest?.Dispose(); _artworkRequest?.Dispose(); _lyricsRequest?.Dispose(); _accountOperations.Dispose(); _lifetime.Dispose();
         }
     }

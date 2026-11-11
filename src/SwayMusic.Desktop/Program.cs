@@ -8,6 +8,12 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args is ["--verify-release", _])
+        {
+            // Verification uses an isolated temporary library and must not activate a running user's window.
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return;
+        }
         using var singleInstance = new Mutex(true, "Local\\SwayMusicNativeWindows", out var created);
         if (!created)
         {

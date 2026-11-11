@@ -126,7 +126,7 @@ public static class NetworkTests
     {
         using var http = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, ConnectTimeout = TimeSpan.FromSeconds(15) }) { Timeout = TimeSpan.FromSeconds(45) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/1.0");
-        var client = new YouTubeMusicClient(http) { ExtractorPath = Path.Combine(toolsDirectory, "yt-dlp.exe") };
+        using var client = new YouTubeMusicClient(http) { EnableNativePlayback = true, ExtractorPath = Path.Combine(toolsDirectory, "yt-dlp.exe") };
         var page = await client.SearchAsync("Bach cello suite");
         Check(page.Tracks.Count > 0, "live music search");
         Console.WriteLine($"LIVE search returned {page.Tracks.Count} tracks; first: {page.Tracks[0].Title}");
@@ -154,6 +154,13 @@ public static class NetworkTests
         var resolveWatch = System.Diagnostics.Stopwatch.StartNew();
         var stream = await client.GetStreamAsync(playbackTrack);
         Console.WriteLine($"LIVE uncached stream URL resolution: {resolveWatch.Elapsed.TotalMilliseconds:F0}ms.");
+        Console.WriteLine($"LIVE extraction route: {client.LastResolutionPath}.");
+        foreach (var probeId in new[] { "jNQXAC9IVRw", "aqz-KE-bpKQ" })
+        {
+            resolveWatch.Restart();
+            await client.GetStreamAsync(new Track(probeId, "New-song latency probe", "Public test"));
+            Console.WriteLine($"LIVE different uncached song: {resolveWatch.Elapsed.TotalMilliseconds:F0}ms, route={client.LastResolutionPath}.");
+        }
         resolveWatch.Restart();
         await client.GetStreamAsync(playbackTrack);
         Console.WriteLine($"LIVE cached stream URL resolution: {resolveWatch.Elapsed.TotalMilliseconds:F0}ms.");

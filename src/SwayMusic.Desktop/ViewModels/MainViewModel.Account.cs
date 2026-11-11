@@ -69,7 +69,7 @@ public sealed partial class MainViewModel
             request.Token.ThrowIfCancellationRequested();
             SignInProgress = "Verifying your YouTube Music account…";
             // Validate in a separate client; a failed replacement never changes the current account.
-            var validation = new YouTubeMusicClient(_http)
+            using var validation = new YouTubeMusicClient(_http)
             {
                 Country = _music.Country, Language = _music.Language,
                 SessionCookie = result.CookieHeader, VisitorData = result.VisitorData,

@@ -4,6 +4,8 @@ SwayMusic is a derivative port of Metrolist by the Metrolist Project and its con
 
 Avalonia UI (MIT): https://github.com/AvaloniaUI/Avalonia
 
+InnerTubeX (GPL-3.0), MetrolistGroup and contributors: https://github.com/MetrolistGroup/innertubex. The native visitor-backed VISIONOS_0_1 playback profile and bootstrap/fast-path approach in `YouTubeMusicClient.Playback.cs` are adapted from v0.11.2, commit c863ddf15be01a1abfa4630329bdc0a1e95f1531. The complete GPL-3.0 text is included in LICENSE. The Kotlin runtime/library is not bundled; this is a C# adaptation of the supported direct-audio path.
+
 NAudio (MIT): https://github.com/naudio/NAudio
 
 SkiaSharp (MIT) and Skia (BSD): https://github.com/mono/SkiaSharp

@@ -4,6 +4,8 @@ Windows repository: `C:\Users\schmi\Documents\GitHub\SwayMusic`. The supplied Me
 
 ## Playback startup delay
 
+The newer native extraction path is documented in `docs/native-extraction.md`: three different uncached songs resolved in 265–325 ms, with a 42.86-second deterministic/native/live regression pass. The helper-based timings below are the earlier baseline. The direct path now shares and persists public bootstrap metadata, warms it asynchronously, and quarantines failed clients while retaining the helper fallback.
+
 - Added preparation of one upcoming song's stream URL while the current song plays. It follows the queue's actual shuffle order, reuses an in-flight preparation when Next is pressed, and cancels unrelated work for a foreground selection. Pause, stop, account changes and shutdown cancel preparation. No decoder or whole audio file is preloaded, and session restore does not start preparation.
 - Completed preparations use the existing bounded, expiry-aware stream URL cache. Speculative failures do not surface as playback errors; normal foreground resolution retries them.
 - A live measurement found 10,561 ms uncached URL resolution versus under 1 ms for a cached URL, with 173 ms audio setup. This identifies URL discovery as the bottleneck in that sample; it is not a promised startup time for all tracks/networks. First-time arbitrary selections can still require resolution.

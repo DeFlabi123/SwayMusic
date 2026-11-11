@@ -4,6 +4,8 @@
 
 ## Run
 
+Playback now first uses Metrolist's visitor-backed native extraction fast path. Public initialization data is warmed asynchronously and cached for three hours; different new songs reuse the same HTTP connections and configuration. The existing next-song preparation and expiry-aware URL cache remain. yt-dlp/QuickJS are retained for streams the native path cannot resolve. See `docs/native-extraction.md` for measured latency and scope.
+
 Extract `SwayMusic-win-x64.zip` and open `SwayMusic.exe`. From the source workspace, the executable is in `artifacts/SwayMusic-win-x64/`. Keep its supporting files and `tools` directory together. The self-contained release includes .NET; the smaller framework-dependent release requires the .NET 10 x64 runtime. No installer or administrator rights are required to run the app.
 
 Search YouTube Music, double-click a track to play, or open local AAC/M4A, MP3, WAV, FLAC and other Windows-supported audio. Paste a YouTube Music playlist URL into Search to browse its songs. Home loads online recommendations when selected; startup restores the local session without starting playback or blocking on the network. The queue, shuffle/repeat, volume, seeking, offline downloads, local playlists, liked songs, history and LRCLIB lyrics are available from the window. Windows media controls expose metadata and transport actions.
