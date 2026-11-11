@@ -20,6 +20,8 @@ public sealed class AppSettings
 
 public sealed class LocalPlaylist
 {
+    public bool IsRemote { get; set; }
+    public bool CanEdit { get; set; }
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

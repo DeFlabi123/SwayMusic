@@ -10,6 +10,7 @@ public sealed partial class MainViewModel
     private readonly IBrowserLoginService _browserLogin;
     private CancellationTokenSource? _signInRequest;
     private long _accountGeneration;
+    internal long AccountOperationGeneration => _accountGeneration;
     private bool _isSigningIn, _isSignedIn;
     private string _signInProgress = "";
 
@@ -49,6 +50,7 @@ public sealed partial class MainViewModel
         AccountStatus = !IsSignedIn ? "Not signed in" : !string.IsNullOrWhiteSpace(session?.DisplayName)
             ? "Signed in as " + session.DisplayName
             : "Saved YouTube Music session";
+        ResetAccountLibrary(session);
     }
 
     private async Task SignInWithGoogleAsync()

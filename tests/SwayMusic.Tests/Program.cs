@@ -3,6 +3,7 @@ using SwayMusic.Tests;
 
 try
 {
+    if (args.Contains("--account-library-live")) { await AccountLibraryTests.LiveAsync(); return 0; }
     if (args.Contains("--browser-login-smoke"))
     {
         await BrowserLoginTests.SmokeAsync();
@@ -38,6 +39,7 @@ try
     await NetworkTests.RunAsync();
     await NativeResolverTests.RunAsync();
     await AccountNetworkTests.RunAsync();
+    await AccountLibraryTests.RunAsync();
     await BrowserLoginTests.RunAsync();
     Console.WriteLine("PASS API request/authentication, renderer parsing, continuation, retry, stream validation");
     await StorageTests.RunAsync();

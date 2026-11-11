@@ -171,6 +171,7 @@ public sealed partial class MainViewModel
         var ids = new HashSet<string>(StringComparer.Ordinal);
         void Add(Track track) { if (ids.Add(track.Id)) _librarySnapshot.Add(track); }
         foreach (var track in _library.State.LikedTracks) Add(track);
+        if (IsSignedIn) foreach (var track in _cloud.LikedSongs) Add(track);
         foreach (var item in _library.State.History) Add(item.Track);
         foreach (var playlist in _library.State.Playlists) foreach (var track in playlist.Tracks) Add(track);
         foreach (var download in _downloads.ListDownloads()) Add(download.Track with { LocalPath = download.FilePath });
@@ -187,7 +188,7 @@ public sealed partial class MainViewModel
     {
         if (_pageKind == "queue") for (int i = 0; i < Tracks.Count; i++) Tracks[i].IsCurrent = i == Player.CurrentIndex;
         else foreach (var row in Tracks) row.IsCurrent = row.Track.Id == Player.CurrentTrack?.Id;
-        foreach (var property in new[] { nameof(IsHome), nameof(IsSearch), nameof(IsHistory), nameof(IsLibrary), nameof(IsLikes), nameof(IsDownloads), nameof(IsPlaylists), nameof(HeroTitle), nameof(ShowEmpty), nameof(EmptyTitle), nameof(EmptyMessage), nameof(ShowHomeCards), nameof(TrackCount) }) OnPropertyChanged(property);
+        foreach (var property in new[] { nameof(IsHome), nameof(IsSearch), nameof(IsHistory), nameof(IsLibrary), nameof(IsLikes), nameof(IsDownloads), nameof(IsPlaylists), nameof(IsArtists), nameof(BrowseIconKind), nameof(IsArtistPage), nameof(ArtistSubscriptionText), nameof(CanChangeArtistSubscription), nameof(IsAccountCollection), nameof(HeroTitle), nameof(ShowEmpty), nameof(EmptyTitle), nameof(EmptyMessage), nameof(ShowHomeCards), nameof(TrackCount) }) OnPropertyChanged(property);
     }
     private void ClearHomeCards()
     {

@@ -48,10 +48,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private TimeSpan _restoredPosition;
     private bool _restoreSeekPending, _sessionRestored;
 
-    public MainViewModel(string? dataDirectory = null, IBrowserLoginService? browserLogin = null, HttpMessageHandler? httpHandler = null)
+    public MainViewModel(string? dataDirectory = null, IBrowserLoginService? browserLogin = null, HttpMessageHandler? httpHandler = null, bool? autoSyncAccount = null)
     {
         _http = new(httpHandler ?? new SocketsHttpHandler
         {
+            UseCookies = false,
             AutomaticDecompression = DecompressionMethods.All,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
             ConnectTimeout = TimeSpan.FromSeconds(15),
@@ -59,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }) { Timeout = TimeSpan.FromSeconds(45) };
         _browserLogin = browserLogin ?? new BrowserLoginService();
         _library = new(dataDirectory);
+        _autoSyncAccount = autoSyncAccount ?? dataDirectory is null;
         _migrateLegacy = dataDirectory is null;
         _credentials = new(dataDirectory);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/1.0");
@@ -73,11 +75,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _positionTimer.Stop();
         SearchCommand = Async(SearchAsync);
         HomeCommand = Async(LoadHomeAsync);
-        LikesCommand = new RelayCommand(() => ShowLocal("likes"));
+        LikesCommand = Async(() => ShowAccountCollectionAsync("likes"));
         HistoryCommand = new RelayCommand(() => ShowLocal("history"));
         DownloadsCommand = new RelayCommand(() => ShowLocal("downloads"));
         QueueCommand = new RelayCommand(ToggleQueuePanel);
-        PlaylistsCommand = new RelayCommand(ShowPlaylists);
+        PlaylistsCommand = Async(() => ShowAccountCollectionAsync("playlists"));
         SettingsCommand = new RelayCommand(() => SetPage("settings", "Settings & account", "Your settings and library are stored locally."));
         LyricsCommand = Async(ToggleLyricsPanelAsync);
         PlaySelectedCommand = Async(PlaySelectedAsync);
@@ -105,6 +107,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         SaveSettingsCommand = Async(SaveSettingsAsync);
         CancelCommand = new RelayCommand(() => _pageRequest?.Cancel());
         InitializeDesign();
+        InitializeCollections();
     }
 
     private AsyncCommand Async(Func<Task> action)
@@ -118,7 +121,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<BrowseItem> BrowseItems { get; } = [];
     public ObservableCollection<LocalPlaylist> Playlists { get; } = [];
     public TrackRow? SelectedTrack { get => _selectedTrack; set => Set(ref _selectedTrack, value); }
-    public BrowseItem? SelectedBrowseItem { get => _selectedBrowseItem; set => Set(ref _selectedBrowseItem, value); }
+    public BrowseItem? SelectedBrowseItem { get => _selectedBrowseItem; set { if (Set(ref _selectedBrowseItem, value)) OnPropertyChanged(nameof(CanChangeArtistSubscription)); } }
     public LocalPlaylist? SelectedPlaylist { get => _selectedPlaylist; set => Set(ref _selectedPlaylist, value); }
     public string Query { get => _query; set => Set(ref _query, value); }
     public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
@@ -128,12 +131,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public bool Busy { get => _busy; private set { if (Set(ref _busy, value)) { OnPropertyChanged(nameof(ShowEmpty)); OnPropertyChanged(nameof(CanRetryStartup)); } } }
     public bool ShowSettings => _pageKind == "settings";
     public bool ShowLyrics => _pageKind == "lyrics";
-    public bool ShowBrowse => _pageKind is "playlists" or "browse-items";
+    public bool ShowBrowse => _pageKind is "playlists" or "browse-items" or "artists";
     public bool ShowTracks => !ShowSettings && !ShowLyrics && !ShowBrowse;
     public bool ShowCreatePlaylist => _pageKind == "playlists";
     public bool IsQueue => _pageKind == "queue";
     public bool HasMore => _continuation is not null;
-    public bool HasPlaylists => Playlists.Count > 0;
+    public bool HasPlaylists => PlaylistTargets.Any();
     public string NewPlaylistName { get => _newPlaylistName; set => Set(ref _newPlaylistName, value); }
     public string CookieInput { get => _cookieInput; set => Set(ref _cookieInput, value); }
     public string AccountStatus { get => _accountStatus; private set => Set(ref _accountStatus, value); }
@@ -234,6 +237,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
             RefreshHomeCards();
             IsReady = true;
+            if (IsSignedIn && _autoSyncAccount) TrackBackground(EnsureAccountLibraryAsync(force: true));
             if (_migrateLegacy) TrackBackground(_music.PrewarmPlaybackAsync(_lifetime.Token));
         }
         catch (OperationCanceledException) { }
@@ -351,10 +355,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void RefreshPlaylists()
     {
+        var selected = SelectedPlaylist;
         Playlists.Clear();
         foreach (var playlist in _library.State.Playlists) Playlists.Add(playlist);
-        SelectedPlaylist ??= Playlists.FirstOrDefault();
+        if (IsSignedIn) foreach (var playlist in _cloud.Playlists) Playlists.Add(new()
+        { Id = playlist.Id, Name = playlist.Title, IsRemote = true, CanEdit = playlist.CanEdit });
+        SelectedPlaylist = Playlists.FirstOrDefault(p => selected is not null && p.Id == selected.Id && p.IsRemote == selected.IsRemote) ?? PlaylistTargets.FirstOrDefault();
         OnPropertyChanged(nameof(HasPlaylists));
+        OnPropertyChanged(nameof(PlaylistTargets));
     }
 
     private void ShowPlaylists()
@@ -362,6 +370,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         SetPage("playlists", "Playlists", "Double-click to open a local playlist. Paste a YouTube playlist URL into Search to browse online.");
         BrowseItems.Clear();
         foreach (var playlist in _library.State.Playlists) BrowseItems.Add(new(playlist.Id, playlist.Name, $"{playlist.Tracks.Count} songs · local playlist", null, "local"));
+        if (IsSignedIn) foreach (var playlist in _cloud.Playlists) BrowseItems.Add(playlist with { Subtitle = playlist.Subtitle + (playlist.CanEdit ? " · YouTube Music" : " · YouTube Music · saved playlist") });
+        SelectedBrowseItem = BrowseItems.FirstOrDefault();
     }
 
     private void OpenLocalPlaylist(LocalPlaylist playlist)
@@ -381,7 +391,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task OpenOnlineBrowseAsync(BrowseItem item)
     {
-        SetPage("online-playlist", item.Title, item.Subtitle);
+        SetPage(item.Kind == "remote-artist" || item.Kind.Contains("ARTIST", StringComparison.Ordinal) ? "artist" : "online-playlist", item.Title, item.Subtitle);
         _browseId = item.Id;
         var token = BeginRequest("Loading music…");
         try { ApplyPage(await _music.BrowseAsync(item.Id, token), token); Status = ""; }
@@ -390,6 +400,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task CreatePlaylistAsync()
     {
+        if (IsSignedIn)
+        {
+            var title = NewPlaylistName.Trim();
+            if (title.Length is < 1 or > 150) { Status = "Enter a playlist name of 1–150 characters."; return; }
+            await MutateCloudAsync(async token =>
+            {
+                var id = await _music.CreateAccountPlaylistAsync(title, token); token.ThrowIfCancellationRequested();
+                _cloud.Playlists.Insert(0, new(id.StartsWith("VL", StringComparison.Ordinal) ? id : "VL" + id, title, "Private playlist", null, "remote-playlist", CanEdit: true));
+                NewPlaylistName = ""; Status = "Private playlist created on YouTube Music.";
+            });
+            ShowPlaylists(); return;
+        }
         var playlist = await _library.CreatePlaylistAsync(NewPlaylistName, _lifetime.Token);
         NewPlaylistName = "";
         RefreshPlaylists();
@@ -400,6 +422,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task RenamePlaylistAsync()
     {
+        if (SelectedBrowseItem is { Kind: "remote-playlist" } remote)
+        {
+            if (!remote.CanEdit) { Status = "You can rename only playlists you own."; return; }
+            var title = NewPlaylistName.Trim();
+            if (title.Length is < 1 or > 150) { Status = "Enter a playlist name of 1–150 characters."; return; }
+            await MutateCloudAsync(async token =>
+            {
+                await _music.EditAccountPlaylistAsync(remote.Id, "rename", title, token); token.ThrowIfCancellationRequested();
+                int index = _cloud.Playlists.FindIndex(p => p.Id == remote.Id);
+                if (index >= 0) _cloud.Playlists[index] = remote with { Title = title };
+                NewPlaylistName = ""; Status = "Playlist renamed on YouTube Music.";
+            }); return;
+        }
         if (SelectedBrowseItem is not { Kind: "local" } item) { Status = "Select a local playlist first."; return; }
         await _library.RenamePlaylistAsync(item.Id, NewPlaylistName, _lifetime.Token);
         NewPlaylistName = "";
@@ -410,6 +445,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task DeletePlaylistAsync()
     {
+        if (SelectedBrowseItem is { Kind: "remote-playlist" } remote)
+        {
+            await MutateCloudAsync(async token =>
+            {
+                await _music.DeleteAccountPlaylistAsync(remote.Id, remote.CanEdit, token); token.ThrowIfCancellationRequested();
+                _cloud.Playlists.RemoveAll(p => p.Id == remote.Id);
+                Status = remote.CanEdit ? "Playlist deleted from YouTube Music." : "Playlist removed from your YouTube Music library.";
+            }); return;
+        }
         if (SelectedBrowseItem is not { Kind: "local" } item) { Status = "Select a local playlist first."; return; }
         await _library.DeletePlaylistAsync(item.Id, _lifetime.Token);
         if (SelectedPlaylist?.Id == item.Id) SelectedPlaylist = null;
@@ -420,6 +464,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private async Task AddToPlaylistAsync()
     {
         if (SelectedPlaylist is not { } playlist || SelectedTrack is not { } row) { Status = "Select a song and a playlist first."; return; }
+        if (playlist.IsRemote)
+        {
+            if (!playlist.CanEdit) { Status = "You can add songs only to playlists you own."; return; }
+            if (!YouTubeMusicClient.IsVideoId(row.Track.Id)) { Status = "Local audio files cannot be added to a YouTube Music playlist."; return; }
+            await MutateCloudAsync(async token => { await _music.EditAccountPlaylistAsync(playlist.Id, "add", row.Track.Id, token); Status = $"Added to {playlist.Name} on YouTube Music."; }); return;
+        }
         await _library.AddToPlaylistAsync(playlist.Id, row.Track, _lifetime.Token);
         Status = $"Added to {playlist.Name}.";
     }
@@ -435,6 +485,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var track = SelectedTrack?.Track ?? Player.CurrentTrack;
         if (track is null) return;
+        if (IsSignedIn && YouTubeMusicClient.IsVideoId(track.Id)) { await ToggleCloudLikeAsync(track); return; }
         bool liked = await _library.ToggleLikeAsync(track, _lifetime.Token);
         Status = liked ? "Added to liked songs." : "Removed from liked songs.";
         if (_pageKind == "likes") ShowLocal("likes");
@@ -475,8 +526,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (SelectedTrack is not { } row) return;
         int index = Tracks.IndexOf(row);
         if (_pageKind == "queue") { await Player.RemoveAtAsync(index, _lifetime.Token); ShowLocal("queue"); }
-        else if (_pageKind == "likes") { await _library.ToggleLikeAsync(row.Track, _lifetime.Token); ShowLocal("likes"); }
+        else if (_pageKind == "likes") { if (IsSignedIn) await ToggleCloudLikeAsync(row.Track, false); else { await _library.ToggleLikeAsync(row.Track, _lifetime.Token); ShowLocal("likes"); } }
         else if (_pageKind == "local-playlist" && _localPlaylistId is { } id) { await _library.RemoveFromPlaylistAsync(id, index, _lifetime.Token); Tracks.RemoveAt(index); }
+        else if (_pageKind == "online-playlist" && IsSignedIn && _browseId is { } remoteId && _cloud.Playlists.Any(p => p.CanEdit && p.Id == remoteId))
+        {
+            if (row.Track.PlaylistSetVideoId is null) { Status = "Refresh this playlist before removing the song; its playlist entry identifier is missing."; return; }
+            await MutateCloudAsync(async token =>
+            {
+                await _music.EditAccountPlaylistAsync(remoteId, "remove", row.Track.Id, token, row.Track.PlaylistSetVideoId);
+                token.ThrowIfCancellationRequested(); Tracks.Remove(row); Status = "Song removed from the YouTube Music playlist.";
+            });
+        }
         else if (_pageKind == "downloads") { await _downloads.DeleteAsync(row.Track.Id, _lifetime.Token); ShowLocal("downloads"); }
         else Status = "Remove is available in the queue, liked songs, local playlists, and downloads.";
     }
@@ -716,6 +776,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _disposed = true;
         _positionTimer.Stop();
         _lifetime.Cancel(); _pageRequest?.Cancel(); _artworkRequest?.Cancel(); _lyricsRequest?.Cancel();
+        _accountLibraryLifetime.Cancel();
         if (_initializationTask is { } initialization) await initialization;
         if (_sessionRestored)
         {
@@ -737,6 +798,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ClearHomeCards();
             _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _music.Dispose(); _http.Dispose();
             _pageRequest?.Dispose(); _artworkRequest?.Dispose(); _lyricsRequest?.Dispose(); _accountOperations.Dispose(); _lifetime.Dispose();
+            _accountLibraryLifetime.Dispose(); _cloudOperations.Dispose();
         }
     }
 }

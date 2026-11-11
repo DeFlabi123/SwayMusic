@@ -206,7 +206,7 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
         return null;
     }
 
-    private async Task<JsonDocument> PostAsync(string endpoint, JsonObject body, CancellationToken ct)
+    private async Task<JsonDocument> PostAsync(string endpoint, JsonObject body, CancellationToken ct, bool retryTransient = true)
     {
         var user = new JsonObject { ["lockedSafetyMode"] = false };
         if (!string.IsNullOrWhiteSpace(DataSyncId)) user["onBehalfOfUser"] = DataSyncId;
@@ -246,7 +246,7 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
                 }
             }
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-            if (attempt < 2 && (response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode is 500 or 502 or 503 or 504))
+            if (retryTransient && attempt < 2 && (response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode is 500 or 502 or 503 or 504))
             {
                 var delay = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMilliseconds(400 * (1 << attempt));
                 await Task.Delay(delay > TimeSpan.FromSeconds(5) ? TimeSpan.FromSeconds(5) : delay, ct).ConfigureAwait(false);
@@ -354,7 +354,8 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
                 var parts = subtitle.Split('•', '·').Select(x => x.Trim()).Where(x => x.Length > 0 && x is not "Song" and not "Video" and not "Episode" && ParseDuration(x) is null).ToArray();
                 artist = parts.FirstOrDefault() ?? "Unknown artist";
             }
-            tracks.Add(new(videoId, title, artist, album, duration, thumbnail));
+            tracks.Add(new(videoId, title, artist, album, duration, thumbnail,
+                PlaylistSetVideoId: String(At(renderer, "playlistItemData"), "playlistSetVideoId") ?? String(At(renderer, "playlistItemData"), "setVideoId")));
             return;
         }
         var browseId = String(At(renderer, "navigationEndpoint", "browseEndpoint"), "browseId") ?? FirstRunEndpoint(titleNode, "browseEndpoint", "browseId");

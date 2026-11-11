@@ -20,7 +20,7 @@ Old DPAPI files containing only a Cookie-header value remain readable. **Advance
 
 ## Behavior and limits
 
-Saved sessions are restored without launching a browser. Cookies may expire or be revoked, in which case sign in again. There is no background Google password/OAuth refresh flow. Successful account validation establishes the account API session; it does not implement remote library synchronization or remote playlist/like mutations. Local playlists and likes remain local.
+Saved sessions are restored without launching a browser. Cookies may expire or be revoked, in which case sign in again. There is no background Google password/OAuth refresh flow. The active account now syncs liked songs, playlists and subscribed artists, with supported edits sent back to YouTube Music. Existing device collections remain separate. See [account-library.md](account-library.md) for scope, account isolation and failure handling.
 
 The external public-stream resolver receives no account cookies. Signing in does not establish private/uploaded, age-restricted, region-restricted or Premium-only playback through that resolver. Unsupported account or playback responses are reported rather than replaced with fabricated data.
 

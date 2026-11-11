@@ -120,14 +120,20 @@ public partial class MainWindow : Window
     private async void AddToPlaylistClicked(object? sender, RoutedEventArgs args)
     {
         if (_viewModel.SelectedTrack is null) return;
-        var picker = new ComboBox { ItemsSource = _viewModel.Playlists, SelectedItem = _viewModel.SelectedPlaylist, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
-        picker.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<SwayMusic.Core.Storage.LocalPlaylist>((playlist, _) => new TextBlock { Text = playlist?.Name });
+        var selectedSongId = _viewModel.SelectedTrack.Track.Id;
+        var accountGeneration = _viewModel.AccountOperationGeneration;
+        var picker = new ComboBox { ItemsSource = _viewModel.PlaylistTargets.ToArray(), SelectedItem = _viewModel.SelectedPlaylist, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        picker.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<SwayMusic.Core.Storage.LocalPlaylist>((playlist, _) => new TextBlock { Text = playlist is null ? "" : playlist.Name + (playlist.IsRemote ? " · YouTube Music" : " · On this device") });
         var dialog = new Window { Title = "Add to playlist", Width = 360, Height = 200, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var add = new Button { Content = "Add song" }; var cancel = new Button { Content = "Cancel" };
         add.Click += (_, _) => dialog.Close(true); cancel.Click += (_, _) => dialog.Close(false);
-        dialog.Content = new StackPanel { Margin = new Thickness(20), Spacing = 18, Children = { new TextBlock { Text = "Choose a local playlist", FontWeight = Avalonia.Media.FontWeight.SemiBold }, picker, new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { add, cancel } } } };
+        dialog.Content = new StackPanel { Margin = new Thickness(20), Spacing = 18, Children = { new TextBlock { Text = "Choose a playlist", FontWeight = Avalonia.Media.FontWeight.SemiBold }, picker, new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { add, cancel } } } };
         if (await dialog.ShowDialog<bool>(this) && picker.SelectedItem is SwayMusic.Core.Storage.LocalPlaylist playlist)
-        { _viewModel.SelectedPlaylist = playlist; _viewModel.AddToPlaylistCommand.Execute(null); }
+        {
+            if (_viewModel.AccountOperationGeneration != accountGeneration || _viewModel.SelectedTrack?.Track.Id != selectedSongId)
+            { _viewModel.ReportError(new InvalidOperationException("The account or selected song changed. Select the song and playlist again.")); return; }
+            _viewModel.SelectedPlaylist = playlist; _viewModel.AddToPlaylistCommand.Execute(null);
+        }
     }
     private async void BrowseDoubleTapped(object? sender, TappedEventArgs args)
     {
@@ -177,14 +183,15 @@ public partial class MainWindow : Window
 
     private async void DeletePlaylistClicked(object? sender, RoutedEventArgs args)
     {
-        if (_viewModel.SelectedBrowseItem is not { Kind: "local" } playlist) return;
+        if (_viewModel.SelectedBrowseItem is not { } playlist || playlist.Kind is not ("local" or "remote-playlist")) return;
+        var accountGeneration = _viewModel.AccountOperationGeneration;
         var dialog = new Window
         {
-            Title = "Delete local playlist", Width = 400, Height = 185,
+            Title = playlist.Kind == "local" ? "Delete local playlist" : playlist.CanEdit ? "Delete YouTube Music playlist" : "Remove saved playlist", Width = 400, Height = 185,
             CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         var cancel = new Button { Content = "Cancel" };
-        var delete = new Button { Content = "Delete playlist" };
+        var delete = new Button { Content = playlist.Kind == "remote-playlist" && !playlist.CanEdit ? "Remove from library" : "Delete playlist" };
         cancel.Click += (_, _) => dialog.Close(false);
         delete.Click += (_, _) => dialog.Close(true);
         dialog.Content = new StackPanel
@@ -192,10 +199,16 @@ public partial class MainWindow : Window
             Margin = new Thickness(20), Spacing = 18,
             Children =
             {
-                new TextBlock { Text = $"Delete ‘{playlist.Title}’? Audio files will be retained.", TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                new TextBlock { Text = playlist.Kind == "local" ? $"Delete ‘{playlist.Title}’? Audio files will be retained." : playlist.CanEdit ? $"Delete ‘{playlist.Title}’ from your YouTube Music account?" : $"Remove ‘{playlist.Title}’ from your YouTube Music library?", TextWrapping = Avalonia.Media.TextWrapping.Wrap },
                 new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10, Children = { cancel, delete } }
             }
         };
-        if (await dialog.ShowDialog<bool>(this)) _viewModel.DeletePlaylistCommand.Execute(null);
+        if (await dialog.ShowDialog<bool>(this))
+        {
+            if (_viewModel.AccountOperationGeneration != accountGeneration)
+            { _viewModel.ReportError(new InvalidOperationException("The account changed. Select the playlist again.")); return; }
+            _viewModel.SelectedBrowseItem = playlist;
+            _viewModel.DeletePlaylistCommand.Execute(null);
+        }
     }
 }

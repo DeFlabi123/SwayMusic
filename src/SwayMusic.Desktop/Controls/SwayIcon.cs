@@ -16,6 +16,7 @@ public sealed class SwayIcon : Avalonia.Controls.Shapes.Path
         ["download"] = Geometry.Parse("M12,2 V16 M6,10 L12,16 L18,10 M3,17 V22 H21 V17"),
         ["history"] = Geometry.Parse("M4,7 A9,9 0 1 1 3,15 M3,2 V8 H9 M12,6 V12 L16,15"),
         ["playlist"] = Geometry.Parse("M3,5 H17 M3,11 H17 M3,17 H12 M18,14 V22 M14,18 H22"),
+        ["artist"] = Geometry.Parse("M16,7 A4,4 0 1 1 8,7 A4,4 0 1 1 16,7 M4,21 C4,12 20,12 20,21"),
         ["queue"] = Geometry.Parse("M3,5 H21 M3,11 H21 M3,17 H12 M17,15 L22,18 L17,21 Z"),
         ["lyrics"] = Geometry.Parse("M5,3 H19 V21 H5 Z M8,8 H16 M8,12 H16 M8,16 H13"),
         ["settings"] = Geometry.Parse("M3,6 H21 M3,18 H21 M8,3 V9 M16,15 V21"),

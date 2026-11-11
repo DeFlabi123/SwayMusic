@@ -11,6 +11,7 @@ SwayMusic is an independent Windows port of Metrolist. Its short in-app brand is
 - Bounded sparse indexing and lossless packet framing of YouTube fragmented AAC for the Windows decoder; downloaded fragmented AAC plays through the same path.
 - Windows System Media Transport Controls metadata, enabled transport buttons and seeking integration.
 - Local playlists, liked songs, bounded listening history, queue/settings persistence and lazy paused session restore.
+- Signed-in YouTube Music liked songs, owned/saved playlists and subscribed artists sync with paginated account reads and per-account metadata caches. Artists appears under Collection. Song likes, artist subscriptions and supported playlist edits write back to the account; existing device collections remain separate.
 - Default-directory migration copies the old Metrolist library into SwayMusic, verifies staged data, retains the original as the backup and never overwrites a separate existing SwayMusic library.
 - Explicit streaming-to-disk downloads, offline playback resolution, storage quotas, cancellation cleanup and atomic file commit; separately available bounded LRU audio-cache service.
 - LRCLIB source-derived matching/fallback, plain and timestamped lyrics, offset/repeated-timestamp parsing, active-line lookup, bounded memory/disk lyric caches.
@@ -20,7 +21,7 @@ SwayMusic is an independent Windows port of Metrolist. Its short in-app brand is
 
 ## Remaining and restricted behavior
 
-- Automatic Google session refresh, a native multi-account manager/channel picker, remote library synchronization and remote playlist/like mutations are not implemented. Expired/revoked cookies may require signing in again. Local likes/playlists are explicitly local.
+- Automatic Google session refresh, a native multi-account manager/channel picker, legacy-device collection upload/merge and remote playlist reordering are not implemented. Expired/revoked cookies may require signing in again. See docs/account-library.md for collection sync and supported account edits.
 - Google sign-in requires installed Microsoft Edge or Google Chrome and network access. The active account selected by the browser is used; completing a real Google account sign-in remains a manual check, separate from isolated protocol/UI tests.
 - Extractor playback is public/unauthenticated; Premium-only, age-restricted, uploaded/private music and region-restricted playback may fail. No fake result or audio substitutes are used.
 - General search filters for videos, albums, artists, podcasts, search suggestions, queue metadata enrichment and every Android browse renderer are not fully ported. Parser preserves common music renderers and reports empty/unavailable pages honestly.

@@ -6,6 +6,8 @@ Current packaging policy: keep one release folder, `artifacts/SwayMusic-win-x64`
 
 ## Playback startup delay
 
+New account collection sync: paginated liked songs, playlists and subscribed artists, Artists navigation, per-account cache/refresh and outgoing likes/subscriptions/playlist edits are implemented. Core and headless fixtures pass, including account isolation and sign-out races. A read-only personal account check confirmed 9 liked songs, 3 playlists and 2 artists without making changes. See docs/account-library.md. Historical statements below about cloud sync being unimplemented describe earlier builds.
+
 The newer native extraction path is documented in `docs/native-extraction.md`: three different uncached songs resolved in 265–325 ms, with a 42.86-second deterministic/native/live regression pass. The helper-based timings below are the earlier baseline. The direct path now shares and persists public bootstrap metadata, warms it asynchronously, and quarantines failed clients while retaining the helper fallback.
 
 - Added preparation of one upcoming song's stream URL while the current song plays. It follows the queue's actual shuffle order, reuses an in-flight preparation when Next is pressed, and cancels unrelated work for a foreground selection. Pause, stop, account changes and shutdown cancel preparation. No decoder or whole audio file is preloaded, and session restore does not start preparation.
@@ -22,7 +24,7 @@ The newer native extraction path is documented in `docs/native-extraction.md`: t
 - The final whole-solution Release build passed in 2.02 seconds with zero warnings/errors. Integrated headless tests passed account UI, cancellation/sign-out races and lifecycle checks; the Settings screenshot was visually reviewed in `docs/sway-account-login.png`.
 - The final installed Microsoft Edge 157 blank-page CDP-pipe/lifecycle smoke passed in 1.10 seconds, including browser termination and removal of all owned profiles. Browser protocol/data fixtures also passed. Completing Google's real account sign-in and MFA is a manual user check and is not claimed by these tests.
 - The final deterministic/native/live suite passed in 56.11 seconds (56.50 seconds wall time), including account/storage/migration fixtures, native audio and SMTC. Real public AAC played for 25.71 seconds; pause made no further upstream reads and seek/resume/stop passed. A real 1,890,654-byte ranged download then decoded and played offline without network resolution.
-- Session expiry may require signing in again. Automatic refresh, native multi-account/channel selection, remote library synchronization and authenticated restricted/Premium extractor playback remain outside this implementation.
+- Session expiry may require signing in again. Automatic refresh, native multi-account/channel selection and authenticated restricted/Premium extractor playback remain outside this implementation. Account collection sync is implemented in the newer section above.
 
 ## SwayMusic redesign
 
@@ -107,6 +109,6 @@ Private committed memory and resident working set differ. These include UI/fonts
 
 ## Remaining and known limitations
 
-Complete Android parity is not claimed. FEATURES.md tracks remote account/library/playlist synchronization, automatic Google session refresh, native multi-account/channel selection, restricted/Premium playback, automatic disk read-through caching, additional search/providers/integrations, translated UI, effects/casting/social features and AOT/trimming. Local playlists/likes remain local. Physical media-key delivery and Windows shell visuals remain manual checks. Unsupported/encrypted AAC containers fail explicitly; supported structures are documented in docs/source-playback.md.
+Complete Android parity is not claimed. FEATURES.md tracks remaining collection parity, automatic Google session refresh, native multi-account/channel selection, restricted/Premium playback, automatic disk read-through caching, additional search/providers/integrations, translated UI, effects/casting/social features and AOT/trimming. Existing device playlists/likes remain local; signed-in account collections sync separately. Physical media-key delivery and Windows shell visuals remain manual checks. Unsupported/encrypted AAC containers fail explicitly; supported structures are documented in docs/source-playback.md.
 
 No Android file was modified, upstream version changed, or commit/push/merge performed. GPL-3.0 attribution and dependency notices accompany source/release.
