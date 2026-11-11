@@ -186,6 +186,7 @@ public sealed partial class MainViewModel
     }
     private void RefreshDesignPage()
     {
+        OnPropertyChanged(nameof(ShowStandardTracks));
         if (_pageKind == "queue") for (int i = 0; i < Tracks.Count; i++) Tracks[i].IsCurrent = i == Player.CurrentIndex;
         else foreach (var row in Tracks) row.IsCurrent = row.Track.Id == Player.CurrentTrack?.Id;
         foreach (var property in new[] { nameof(IsHome), nameof(IsSearch), nameof(IsHistory), nameof(IsLibrary), nameof(IsLikes), nameof(IsDownloads), nameof(IsPlaylists), nameof(IsArtists), nameof(BrowseIconKind), nameof(IsArtistPage), nameof(ArtistSubscriptionText), nameof(CanChangeArtistSubscription), nameof(IsAccountCollection), nameof(HeroTitle), nameof(ShowEmpty), nameof(EmptyTitle), nameof(EmptyMessage), nameof(ShowHomeCards), nameof(TrackCount) }) OnPropertyChanged(property);

@@ -6,6 +6,8 @@ Current packaging policy: keep one release folder, `artifacts/SwayMusic-win-x64`
 
 ## Playback startup delay
 
+Collection random-start controls and detailed artist profiles are implemented. Song metadata retains individual artist browse IDs, and clickable bylines navigate without starting playback. Name-only legacy metadata uses source-derived artist search. Artist pages show portraits and audience stats with separate Songs, Releases & more and About tabs; release artwork is fetched on demand. Deterministic and native-control fixtures cover metadata parsing, multiple artists, fallback lookup, random-start queue setup, small-window layout and stale navigation. A public Lil Peep profile read confirmed songs, releases, biography and a downloadable portrait.
+
 New account collection sync: paginated liked songs, playlists and subscribed artists, Artists navigation, per-account cache/refresh and outgoing likes/subscriptions/playlist edits are implemented. Core and headless fixtures pass, including account isolation and sign-out races. A read-only personal account check confirmed 9 liked songs, 3 playlists and 2 artists without making changes. See docs/account-library.md. Historical statements below about cloud sync being unimplemented describe earlier builds.
 
 The newer native extraction path is documented in `docs/native-extraction.md`: three different uncached songs resolved in 265–325 ms, with a 42.86-second deterministic/native/live regression pass. The helper-based timings below are the earlier baseline. The direct path now shares and persists public bootstrap metadata, warms it asynchronously, and quarantines failed clients while retaining the helper fallback.

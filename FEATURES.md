@@ -6,6 +6,7 @@ SwayMusic is an independent Windows port of Metrolist. Its short in-app brand is
 
 - Native Avalonia window, compiled bindings, virtualized track lists, navigation, keyboard shortcuts and resize support. SwayMusic branding adds local Inter typography, a ribbon application icon, dark/light/system appearance, compact rows, library filtering/sorting, row context menus and an adaptive Queue/Lyrics panel.
 - Source-derived YouTube Music song search and continuation, home recommendations, playlist/album/artist browse parsing, and radio queues.
+- Collection shuffle buttons start the displayed song queue at a random entry. Artist names in song rows, queue rows and the player open artist profiles with portraits, audience stats, songs, release cards and biographies. Older name-only song metadata uses artist-filtered search; ambiguous results require choosing an artist. Release artwork loads when its tab is opened.
 - Direct AAC stream selection, actual stream availability checks, bounded signed-URL cache and on-demand official yt-dlp/QuickJS challenge resolution.
 - Native Media Foundation decoding and event-driven WASAPI output; local and streamed AAC, play/pause, seeking, next/previous, ordered queue with duplicates, queue reorder/removal, shuffle and repeat, volume and background playback.
 - Bounded sparse indexing and lossless packet framing of YouTube fragmented AAC for the Windows decoder; downloaded fragmented AAC plays through the same path.

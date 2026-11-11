@@ -83,6 +83,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         SettingsCommand = new RelayCommand(() => SetPage("settings", "Settings & account", "Your settings and library are stored locally."));
         LyricsCommand = Async(ToggleLyricsPanelAsync);
         PlaySelectedCommand = Async(PlaySelectedAsync);
+        ShuffleCollectionCommand = Async(ShuffleCollectionAsync);
         ToggleCommand = new RelayCommand(Player.Toggle);
         NextCommand = Async(() => Player.NextAsync(_lifetime.Token));
         PreviousCommand = Async(() => Player.PreviousAsync(_lifetime.Token));
@@ -168,6 +169,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public ICommand SettingsCommand { get; }
     public ICommand LyricsCommand { get; }
     public ICommand PlaySelectedCommand { get; }
+    public ICommand ShuffleCollectionCommand { get; }
     public ICommand ToggleCommand { get; }
     public ICommand NextCommand { get; }
     public ICommand PreviousCommand { get; }
@@ -254,6 +256,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _pageRequest?.Cancel();
         if (Busy) Status = "";
         Busy = false;
+        ClearArtistProfile();
         _pageKind = kind;
         _continuation = null;
         _localPlaylistId = null;
@@ -309,7 +312,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         foreach (var track in page.Tracks) Tracks.Add(new(track));
         _continuation = page.Continuation;
         OnPropertyChanged(nameof(HasMore));
-        if (Tracks.Count == 0 && page.Items is { Count: > 0 })
+        if (!IsArtistPage && Tracks.Count == 0 && page.Items is { Count: > 0 })
         {
             _pageKind = "browse-items";
             BrowseItems.Clear();
@@ -391,6 +394,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task OpenOnlineBrowseAsync(BrowseItem item)
     {
+        if (item.Kind == "remote-artist" || item.Kind.Contains("ARTIST", StringComparison.Ordinal) || item.Id.StartsWith("UC", StringComparison.Ordinal))
+        { await OpenArtistAsync(new(item.Title, item.Id)); return; }
         SetPage(item.Kind == "remote-artist" || item.Kind.Contains("ARTIST", StringComparison.Ordinal) ? "artist" : "online-playlist", item.Title, item.Subtitle);
         _browseId = item.Id;
         var token = BeginRequest("Loading music…");
@@ -479,6 +484,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (SelectedTrack is not { } selected) return;
         _restoreSeekPending = false;
         await Player.SetQueueAsync(Tracks.Select(t => t.Track), Tracks.IndexOf(selected), _lifetime.Token);
+    }
+
+    public async Task ShuffleCollectionAsync()
+    {
+        if (Tracks.Count == 0) return;
+        var rows = Tracks.ToArray();
+        int index = Random.Shared.Next(rows.Length);
+        SelectedTrack = rows[index];
+        _restoreSeekPending = false;
+        await Player.SetQueueAsync(rows.Select(row => row.Track), index, _lifetime.Token);
     }
 
     private async Task LikeAsync()
@@ -655,7 +670,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private void OnPlayerChanged(object? sender, EventArgs args) => Dispatcher.UIThread.Post(() =>
     {
         if (_disposed) return;
-        foreach (var property in new[] { nameof(PlayButtonText), nameof(PlayIconKind), nameof(NowTitle), nameof(NowArtist), nameof(DurationSeconds), nameof(DurationText), nameof(RepeatText), nameof(Shuffle), nameof(Volume) }) OnPropertyChanged(property);
+        foreach (var property in new[] { nameof(PlayButtonText), nameof(PlayIconKind), nameof(NowTitle), nameof(NowArtist), nameof(NowArtistLinks), nameof(DurationSeconds), nameof(DurationText), nameof(RepeatText), nameof(Shuffle), nameof(Volume) }) OnPropertyChanged(property);
         if (Player.State != PlayerState.Loading) _sourcePrefetch.Prepare(Player.State == PlayerState.Playing ? Player.NextTrack : null);
         UpdatePosition(); UpdateTimer();
         RefreshQueue();
@@ -795,6 +810,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             Artwork?.Dispose();
+            ClearArtistProfile();
             ClearHomeCards();
             _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _music.Dispose(); _http.Dispose();
             _pageRequest?.Dispose(); _artworkRequest?.Dispose(); _lyricsRequest?.Dispose(); _accountOperations.Dispose(); _lifetime.Dispose();

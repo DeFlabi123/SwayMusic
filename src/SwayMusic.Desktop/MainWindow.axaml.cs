@@ -80,7 +80,26 @@ public partial class MainWindow : Window
     {
         if (args.Key == Key.Enter) { _viewModel.SearchCommand.Execute(null); args.Handled = true; }
     }
-    private void TrackDoubleTapped(object? sender, TappedEventArgs args) => _viewModel.PlaySelectedCommand.Execute(null);
+    private void TrackDoubleTapped(object? sender, TappedEventArgs args)
+    {
+        if (args.Source is Control control && (control is Button || control.GetVisualAncestors().OfType<Button>().Any())) return;
+        _viewModel.PlaySelectedCommand.Execute(null);
+    }
+    private async void ArtistNameClicked(object? sender, RoutedEventArgs args)
+    {
+        args.Handled = true;
+        if (sender is not Button { Tag: SwayMusic.Core.ArtistReference artist }) return;
+        try { await _viewModel.OpenArtistAsync(artist); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { _viewModel.ReportError(error); }
+    }
+    private async void ArtistCatalogClicked(object? sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: BrowseCard card }) return;
+        try { await _viewModel.OpenArtistCatalogItemAsync(card.Item); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { _viewModel.ReportError(error); }
+    }
     private void FocusSearchClicked(object? sender, RoutedEventArgs args) { SearchBox.Focus(); SearchBox.SelectAll(); }
     private async void HomeCardClicked(object? sender, RoutedEventArgs args)
     {
@@ -91,6 +110,7 @@ public partial class MainWindow : Window
     }
     private async void QueueDoubleTapped(object? sender, TappedEventArgs args)
     {
+        if (args.Source is Control control && (control is Button || control.GetVisualAncestors().OfType<Button>().Any())) return;
         try { await _viewModel.PlayQueueSelectedAsync(); }
         catch (OperationCanceledException) { }
         catch (Exception error) { _viewModel.ReportError(error); }
@@ -103,7 +123,7 @@ public partial class MainWindow : Window
     {
         if (sender is not Button { Tag: TrackRow row } button) return;
         _viewModel.SelectedTrack = row;
-        TrackList.ContextMenu?.Open(button);
+        (_viewModel.IsArtistPage ? ArtistTrackList : TrackList).ContextMenu?.Open(button);
     }
     private void TrackMenuClicked(object? sender, RoutedEventArgs args)
     {

@@ -323,6 +323,7 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
         {
             if (seenTracks is not null && !seenTracks.Add(videoId)) return;
             var artistParts = new List<string>();
+            var artists = new List<ArtistReference>();
             string? album = null;
             TimeSpan? duration = ParseDuration(Text(At(renderer, "lengthText")));
             void Metadata(JsonElement text)
@@ -337,11 +338,17 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
                     var pageType = String(At(browse, "browseEndpointContextSupportedConfigs", "browseEndpointContextMusicConfig"), "pageType");
                     if (pageType == "MUSIC_PAGE_TYPE_ALBUM") album ??= label;
                     else if (pageType is "MUSIC_PAGE_TYPE_ARTIST" or "MUSIC_PAGE_TYPE_USER_CHANNEL" || String(browse, "browseId")?.StartsWith("UC", StringComparison.Ordinal) == true)
-                    { if (!artistParts.Contains(label)) artistParts.Add(label); }
+                    {
+                        if (!artistParts.Contains(label)) artistParts.Add(label);
+                        var artistId = String(browse, "browseId");
+                        if (!artists.Any(a => a.Name == label && a.Id == artistId)) artists.Add(new(label, artistId));
+                    }
                     duration ??= ParseDuration(label);
                 }
             }
             Metadata(metadata);
+            Metadata(At(renderer, "longBylineText"));
+            Metadata(At(renderer, "shortBylineText"));
             if (columns.ValueKind == JsonValueKind.Array)
                 for (var i = 2; i < columns.GetArrayLength(); i++) Metadata(At(columns[i], "musicResponsiveListItemFlexColumnRenderer", "text"));
             var fixedColumns = At(renderer, "fixedColumns");
@@ -355,7 +362,8 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
                 artist = parts.FirstOrDefault() ?? "Unknown artist";
             }
             tracks.Add(new(videoId, title, artist, album, duration, thumbnail,
-                PlaylistSetVideoId: String(At(renderer, "playlistItemData"), "playlistSetVideoId") ?? String(At(renderer, "playlistItemData"), "setVideoId")));
+                PlaylistSetVideoId: String(At(renderer, "playlistItemData"), "playlistSetVideoId") ?? String(At(renderer, "playlistItemData"), "setVideoId"),
+                Artists: artists.Count > 0 ? artists : null));
             return;
         }
         var browseId = String(At(renderer, "navigationEndpoint", "browseEndpoint"), "browseId") ?? FirstRunEndpoint(titleNode, "browseEndpoint", "browseId");
@@ -490,7 +498,7 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
             foreach (var run in runs.EnumerateArray()) if (String(At(run, "navigationEndpoint", endpoint), key) is { } value) return value;
         return null;
     }
-    private static string? Thumbnail(JsonElement renderer)
+    private static string? Thumbnail(JsonElement renderer, int maximumWidth = 600)
     {
         string? result = null;
         var bestWidth = -1;
@@ -503,7 +511,7 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
             {
                 var widthNode = At(node, "width");
                 var width = widthNode.ValueKind == JsonValueKind.Number && widthNode.TryGetInt32(out var number) ? number : 0;
-                if (width >= bestWidth && width <= 600 && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https") { result = url; bestWidth = width; }
+                if (width >= bestWidth && width <= maximumWidth && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https") { result = url; bestWidth = width; }
             }
             foreach (var property in node.EnumerateObject()) Visit(property.Value, depth + 1);
         }
