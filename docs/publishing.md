@@ -1,6 +1,8 @@
-# Deployment and optimization investigation
+# Publishing SwayMusic
 
 The application targets stable .NET 10, Windows x64. An untrimmed self-contained directory is the compatibility baseline; it includes CoreCLR, native Skia/HarfBuzz, WinRT projections and the native on-demand stream helpers. A framework-dependent directory saves the runtime's disk footprint on machines that already have .NET 10. Neither requires Java or an embedded browser.
+
+The solution is `SwayMusic.slnx`, desktop project is `src/SwayMusic.Desktop/SwayMusic.Desktop.csproj`, and executable is `SwayMusic.exe`. Publish scripts produce `SwayMusic-win-x64.zip` and `SwayMusic-win-x64-framework-dependent.zip`; source packaging produces `SwayMusic-Windows-source.zip`. The source archive includes editable branding/design files and excludes development preview profiles. Verify-Release rejects old Metrolist binaries and test assemblies in the new distributions. Historical source attribution is preserved in LICENSE/THIRD-PARTY-NOTICES rather than removed by the rename.
 
 Only Avalonia's Win32/Skia backend is referenced, rather than the cross-platform Desktop meta-package. Publishing with `win-x64` removes other-platform native assets. Only NAudio.Wasapi and Core are needed. Debug symbols are omitted from published builds; source and tests remain available separately. Workstation GC is selected to avoid server GC's per-CPU heap overhead for a single-user desktop application.
 
@@ -12,4 +14,4 @@ The host initially supplied only a usable preview SDK. On resuming development, 
 
 Both distributions must include LICENSE, THIRD-PARTY-NOTICES, the helper licenses and corresponding application source under GPL-3.0. The helper download script pins exact upstream versions and SHA256 hashes; updates are a reviewed source change rather than silent executable downloads at runtime.
 
-`scripts/Verify-Release.ps1` starts the actual published executable in its isolated verification mode, which constructs the production native window, saves a runtime/architecture report and closes itself after three seconds. Its temporary library is separate from the user's data. Self-contained verification deliberately used nonexistent DOTNET_ROOT paths and successfully loaded the bundled .NET 10.0.15 runtime. This checks the distribution layout and entry point in addition to the control/engine tests.
+`scripts/Verify-Release.ps1` starts the actual published executable in its isolated verification mode, which constructs the production native window, saves a runtime/architecture report and closes itself after three seconds. Its temporary library is separate from the user's data. Final SwayMusic self-contained verification deliberately used nonexistent DOTNET_ROOT and DOTNET_ROOT_X64 paths and successfully loaded the bundled .NET 10.0.15 runtime. The framework-dependent executable passed against the verified local .NET 10.0.15 x64 runtime. Both reported clean close and X64; the JSON reports are in `docs/verification-self-contained.json` and `docs/verification-framework-dependent.json`. This checks the distribution layout and entry point in addition to the control/engine tests.

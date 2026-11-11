@@ -1,6 +1,6 @@
 # Attribution
 
-Metrolist Native Windows is a derivative port of Metrolist by the Metrolist Project and its contributors, distributed under GNU GPL version 3. The original license is included in LICENSE. Original source: https://github.com/MetrolistGroup/Metrolist. Source used for this port is the supplied Metrolist-main directory, including its innertube module and Android app. The app icon is from that source.
+SwayMusic is a derivative port of Metrolist by the Metrolist Project and its contributors, distributed under GNU GPL version 3. The original license is included in LICENSE. Original source: https://github.com/MetrolistGroup/Metrolist. Source used for this port is the supplied Metrolist-main directory, including its innertube module and Android app. The SwayMusic ribbon logo and wordmark are new branding for this independent Windows application; the previous Windows build used the original Metrolist icon.
 
 Avalonia UI (MIT): https://github.com/AvaloniaUI/Avalonia
 
@@ -13,6 +13,8 @@ SkiaSharp (MIT) and Skia (BSD): https://github.com/mono/SkiaSharp
 Microsoft.Windows.SDK.NET / CsWinRT (MIT): https://github.com/microsoft/CsWinRT
 
 MicroCom.Runtime (MIT): https://github.com/AvaloniaUI/MicroCom
+
+Inter typeface (SIL Open Font License 1.1): https://rsms.me/inter/. A local font is embedded in the application; its copyright and full license are included in licenses/Inter-OFL.txt.
 
 yt-dlp 2026.10.26 (Unlicense for original code, plus bundled components under their own licenses): https://github.com/yt-dlp/yt-dlp. The bundled executable includes Python and other libraries; their complete notices are included in tools/yt-dlp-THIRD_PARTY_LICENSES.txt. The helper runs on demand to resolve public media URLs and is not a playback engine.
 

@@ -1,6 +1,6 @@
 # Source analysis and Windows architecture
 
-The supplied Android tree is treated as read-only. Its root AGENTS.md governs contributions to that tree; no Android changes, pulls, version changes, commits, or history operations are performed for this sibling Windows project.
+The supplied Android tree is treated as read-only. Its root AGENTS.md governs contributions to that tree; no Android changes, pulls, version changes, commits, or history operations are performed for this independent Windows project. The Windows application is now named SwayMusic; the upstream project remains Metrolist.
 
 ## Android source map
 
@@ -15,9 +15,9 @@ The supplied Android tree is treated as read-only. Its root AGENTS.md governs co
 
 ## Windows layers
 
-`Metrolist.Core` has no GUI dependency. It owns immutable shared music models, shared-HttpClient API access, stream resolution, persistence, DPAPI credentials, downloads, bounded cache and lyrics.
+`SwayMusic.Core` has no GUI dependency. It owns immutable shared music models, shared-HttpClient API access, stream resolution, persistence, DPAPI account sessions, downloads, bounded cache and lyrics. Account requests carry the saved active account index, visitor data and data-sync identifier; an account-menu response confirms the displayed identity before a replacement session is committed.
 
-`Metrolist.Desktop` targets Windows 10 build 19041 or later with .NET 10. It uses only the Avalonia Win32/Skia backend, Fluent controls, NAudio.Wasapi and the platform SDK. No Android, Java, Electron, browser engine or WebView is used. Composition is explicit rather than a DI container. View-model commands handle application actions; the window handles file picking, keyboard events, resize state and OS media integration.
+`SwayMusic.Desktop` targets Windows 10 build 19041 or later with .NET 10. It uses only the Avalonia Win32/Skia backend, Fluent controls, NAudio.Wasapi and the platform SDK. The application frontend has no Android, Java, Electron or embedded browser/WebView. Explicit Google sign-in launches an installed Edge/Chrome separately for that attempt; no browser is bundled or launched during normal startup/idle/playback. Composition is explicit rather than a DI container. View-model commands handle application actions; the window handles file picking, keyboard events, resize state and OS media integration.
 
 `PlaybackService` serializes decoder operations, cancels obsolete loads, streams remote AAC through Windows Media Foundation, and renders through event-driven shared-mode WASAPI. Track transitions are decoder-driven. The queue preserves duplicates, supports shuffle without replacement, reorder, removal and repeat. A restored queue does not start the audio engine or make network requests until Play.
 
@@ -25,6 +25,10 @@ The UI uses compiled bindings and virtualized lists. It decodes only current art
 
 The library is an atomic, schema-versioned JSON snapshot. This avoids an additional database engine for the first port, with the tradeoff that library writes serialize the snapshot; a paged SQLite store would be appropriate if measured large-library loads justify it. History, lyric and audio caches are bounded. Explicit downloads are never silently evicted.
 
+Browser sign-in uses a unique owned profile and inherited CDP pipes rather than a TCP debugging listener or the user's existing browser profile. Collection starts only on an exact HTTPS YouTube Music page. The native client validates the collected session in a separate API client, then serializes the commit with sign-out and rejects stale/cancelled attempts. `CredentialStore` encrypts a magic/version-tagged JSON envelope before any temporary file write and atomically replaces `account.dpapi`; legacy raw DPAPI cookie bytes remain readable. Browser processes, pipe handles and the owned temporary profile are disposed at the end of an attempt. See [authentication.md](authentication.md) for the lifecycle, limits and verification boundary.
+
 ## Release choices
+
+The new source namespace/project identities are `SwayMusic.Core`, `SwayMusic.Desktop`, `SwayMusic.Tests` and `SwayMusic.StorageTests`. Desktop output is `SwayMusic.exe`; public Windows distributions use `SwayMusic-win-x64` names. New branding does not change the original GPL attribution. `design/SwayMusic/REDESIGN-PLAN.md` records the approved visual direction, and `docs/data-migration.md` describes the separate migration from the former Metrolist data directory.
 
 Provide a framework-dependent Windows folder for users with .NET 10 Desktop/runtime and a self-contained folder for machines without .NET. Both use Release compilation and workstation GC. Trimming and Native AOT remain disabled until reflection-based JSON serialization, Avalonia bindings and WinRT/COM interop are validated under those modes. Smaller unverified binaries are not a sufficient reason to sacrifice correctness.

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SwayMusic.Core/SwayMusic.Core.csproj" />
+    <Project Path="src/SwayMusic.Desktop/SwayMusic.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SwayMusic.Tests/SwayMusic.Tests.csproj" />
+    <Project Path="tests/SwayMusic.StorageTests/SwayMusic.StorageTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SwayMusic.Core\SwayMusic.Core.csproj" />
+    <Compile Include="..\SwayMusic.Tests\StorageTests.cs" Link="StorageTests.cs" />
+    <Compile Include="..\SwayMusic.Tests\MigrationTests.cs" Link="MigrationTests.cs" />
+  </ItemGroup>
+</Project>

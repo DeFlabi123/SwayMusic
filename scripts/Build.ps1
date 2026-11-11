@@ -12,23 +12,23 @@ try {
         $env:DOTNET_ROOT = Join-Path $projectRoot '.sdk'
         $env:DOTNET_ROOT_X64 = $env:DOTNET_ROOT
     }
-    & $dotnetCommand restore Metrolist.slnx --packages .nuget\packages
+    & $dotnetCommand restore SwayMusic.slnx --packages .nuget\packages
     if ($LASTEXITCODE) { throw 'Restore failed.' }
-    & $dotnetCommand build Metrolist.slnx -c Release --no-restore
+    & $dotnetCommand build SwayMusic.slnx -c Release --no-restore
     if ($LASTEXITCODE) { throw 'Build failed.' }
     if ($Test -or $Live -or $Audio) {
         $testArgs = @()
         if ($Audio) { $testArgs += '--audio' }
         if ($Live) { $testArgs += '--live' }
-        & '.\tests\Metrolist.Tests\bin\Release\net10.0-windows10.0.19041.0\Metrolist.Tests.exe' @testArgs
+        & '.\tests\SwayMusic.Tests\bin\Release\net10.0-windows10.0.19041.0\SwayMusic.Tests.exe' @testArgs
         if ($LASTEXITCODE) { throw 'Verification failed.' }
     }
     if ($Headless) {
-        & '.\tests\Metrolist.Tests\bin\Release\net10.0-windows10.0.19041.0\Metrolist.Tests.exe' --headless
+        & '.\tests\SwayMusic.Tests\bin\Release\net10.0-windows10.0.19041.0\SwayMusic.Tests.exe' --headless
         if ($LASTEXITCODE) { throw 'Headless UI verification failed.' }
     }
     if ($Desktop) {
-        & '.\tests\Metrolist.Tests\bin\Release\net10.0-windows10.0.19041.0\Metrolist.Tests.exe' --desktop-smoke
+        & '.\tests\SwayMusic.Tests\bin\Release\net10.0-windows10.0.19041.0\SwayMusic.Tests.exe' --desktop-smoke
         if ($LASTEXITCODE) { throw 'Native window verification failed.' }
     }
 }

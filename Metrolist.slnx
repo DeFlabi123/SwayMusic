@@ -1,9 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Metrolist.Core/Metrolist.Core.csproj" />
-    <Project Path="src/Metrolist.Desktop/Metrolist.Desktop.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Metrolist.Tests/Metrolist.Tests.csproj" />
-  </Folder>
-</Solution>

@@ -1,6 +1,6 @@
 # Playback source analysis and Windows adaptation
 
-Original source was read without modification in `../Metrolist/Metrolist-main`.
+Original source was read without modification in `C:\Users\schmi\Desktop\Metrolist\Metrolist-main`.
 
 `app/src/main/kotlin/com/metrolist/music/playback/MusicService.kt` owns the Android Media3 ExoPlayer, Android media session, audio focus/noisy-output handling, queue restoration, volume/repeat/shuffle preferences, download and streaming data sources, playback error recovery, and history reporting. `PlayerConnection.kt` exposes player state to Compose. Android services, notifications, wake locks, audio focus, and Media3 cannot be reused on Windows.
 

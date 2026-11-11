@@ -1,12 +1,12 @@
 param([Parameter(Mandatory)][string]$Directory, [string]$ReportName = 'release-check.json')
 $ErrorActionPreference = 'Stop'
 $releaseDirectory = [IO.Path]::GetFullPath($Directory)
-$executable = Join-Path $releaseDirectory 'Metrolist.exe'
-foreach ($name in @('Metrolist.exe','Metrolist.dll','Metrolist.Core.dll','Avalonia.HarfBuzz.dll','libSkiaSharp.dll','tools\yt-dlp.exe','tools\qjs.exe','LICENSE','FEATURES.md')) {
+$executable = Join-Path $releaseDirectory 'SwayMusic.exe'
+foreach ($name in @('SwayMusic.exe','SwayMusic.dll','SwayMusic.Core.dll','Avalonia.HarfBuzz.dll','libSkiaSharp.dll','tools\yt-dlp.exe','tools\qjs.exe','LICENSE','FEATURES.md','licenses\Inter-OFL.txt')) {
     if (!(Test-Path -LiteralPath (Join-Path $releaseDirectory $name))) { throw "Missing release file: $name" }
 }
 if (Get-ChildItem -LiteralPath $releaseDirectory -Recurse -File -Filter '*.pdb') { throw 'Debug symbols should not be in the release.' }
-if (Test-Path -LiteralPath (Join-Path $releaseDirectory 'Metrolist.Tests.dll')) { throw 'Test code must not be published.' }
+if (Get-ChildItem -LiteralPath $releaseDirectory -File -Recurse | Where-Object { $_.Name -match '^(Metrolist.*\.(exe|dll)|SwayMusic\.(Tests|StorageTests)\.dll)$' }) { throw 'Old application or test assemblies must not be published.' }
 $reportPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\artifacts\$ReportName"))
 if (Test-Path -LiteralPath $reportPath) { Remove-Item -LiteralPath $reportPath }
 $process = Start-Process -FilePath $executable -ArgumentList @('--verify-release', ('"{0}"' -f $reportPath)) -WorkingDirectory $releaseDirectory -WindowStyle Hidden -PassThru

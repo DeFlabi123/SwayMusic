@@ -1,0 +1,49 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="using:SwayMusic.Desktop.Controls">
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="WindowBrush">#101412</SolidColorBrush><SolidColorBrush x:Key="PanelBrush">#171D19</SolidColorBrush><SolidColorBrush x:Key="RaisedBrush">#202922</SolidColorBrush>
+          <SolidColorBrush x:Key="TextBrush">#F3F4EB</SolidColorBrush><SolidColorBrush x:Key="MutedBrush">#A5AEA5</SolidColorBrush><SolidColorBrush x:Key="DividerBrush">#303B32</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#D6F68A</SolidColorBrush><SolidColorBrush x:Key="AccentForegroundBrush">#152019</SolidColorBrush><SolidColorBrush x:Key="SecondaryBrush">#C4B5DF</SolidColorBrush><SolidColorBrush x:Key="ErrorBrush">#F4A69D</SolidColorBrush>
+          <Color x:Key="SystemAccentColor">#D6F68A</Color>
+          <StaticResource x:Key="SliderThumbBackground" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderThumbBackgroundPointerOver" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderThumbBackgroundPressed" ResourceKey="AccentBrush"/>
+          <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="AccentBrush"/>
+          <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="AccentBrush"/><StaticResource x:Key="SystemControlFocusVisualPrimaryBrush" ResourceKey="AccentBrush"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="WindowBrush">#F5F4EC</SolidColorBrush><SolidColorBrush x:Key="PanelBrush">#ECEEE4</SolidColorBrush><SolidColorBrush x:Key="RaisedBrush">#E3E8DA</SolidColorBrush>
+          <SolidColorBrush x:Key="TextBrush">#18221A</SolidColorBrush><SolidColorBrush x:Key="MutedBrush">#586552</SolidColorBrush><SolidColorBrush x:Key="DividerBrush">#CCD4C3</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#425B22</SolidColorBrush><SolidColorBrush x:Key="AccentForegroundBrush">#F7FAEF</SolidColorBrush><SolidColorBrush x:Key="SecondaryBrush">#695684</SolidColorBrush><SolidColorBrush x:Key="ErrorBrush">#A6352D</SolidColorBrush>
+          <Color x:Key="SystemAccentColor">#425B22</Color>
+          <StaticResource x:Key="SliderThumbBackground" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderThumbBackgroundPointerOver" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderThumbBackgroundPressed" ResourceKey="AccentBrush"/>
+          <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="AccentBrush"/><StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="AccentBrush"/>
+          <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="AccentBrush"/><StaticResource x:Key="SystemControlFocusVisualPrimaryBrush" ResourceKey="AccentBrush"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <FontFamily x:Key="SwayFont">avares://SwayMusic/Assets/Fonts#Inter</FontFamily>
+    </ResourceDictionary>
+  </Styles.Resources>
+  <Style Selector=":is(Control)"><Setter Property="Transitions" Value="{x:Null}"/></Style>
+  <Style Selector="Window"><Setter Property="FontFamily" Value="{StaticResource SwayFont}"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/><Setter Property="Background" Value="{DynamicResource WindowBrush}"/></Style>
+  <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/></Style>
+  <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="18"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="32"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="LetterSpacing" Value="-1.5"/></Style>
+  <Style Selector="Button"><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="14,8"/><Setter Property="MinHeight" Value="36"/><Setter Property="Background" Value="{DynamicResource RaisedBrush}"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/><Setter Property="BorderThickness" Value="0"/></Style>
+  <Style Selector="Button.primary"><Setter Property="Background" Value="{DynamicResource AccentBrush}"/><Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="{DynamicResource AccentBrush}"/><Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/></Style>
+  <Style Selector="Button.nav"><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="12,11"/><Setter Property="Margin" Value="0,2"/></Style>
+  <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource RaisedBrush}"/><Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/></Style>
+  <Style Selector="Button.nav.selected ui|SwayIcon"><Setter Property="Stroke" Value="{DynamicResource AccentBrush}"/></Style>
+  <Style Selector="Button.icon"><Setter Property="Padding" Value="8"/><Setter Property="Background" Value="Transparent"/><Setter Property="MinWidth" Value="34"/></Style>
+  <Style Selector="Button.player"><Setter Property="CornerRadius" Value="24"/><Setter Property="Width" Value="44"/><Setter Property="Height" Value="44"/><Setter Property="Padding" Value="12"/></Style>
+  <Style Selector="Button.card"><Setter Property="Padding" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/></Style>
+  <Style Selector="TextBox"><Setter Property="CornerRadius" Value="8"/><Setter Property="MinHeight" Value="38"/><Setter Property="Background" Value="{DynamicResource PanelBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/></Style>
+  <Style Selector="ComboBox"><Setter Property="CornerRadius" Value="8"/><Setter Property="Background" Value="{DynamicResource PanelBrush}"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/></Style>
+  <Style Selector="ListBox"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/></Style>
+  <Style Selector="ListBoxItem"><Setter Property="Padding" Value="10,5"/><Setter Property="CornerRadius" Value="6"/><Setter Property="Margin" Value="0,1"/></Style>
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter"><Setter Property="Background" Value="{DynamicResource RaisedBrush}"/></Style>
+  <Style Selector="ui|SwayIcon"><Setter Property="Width" Value="18"/><Setter Property="Height" Value="18"/><Setter Property="Stretch" Value="Uniform"/><Setter Property="Stroke" Value="{DynamicResource MutedBrush}"/><Setter Property="StrokeThickness" Value="1.7"/><Setter Property="StrokeLineCap" Value="Round"/><Setter Property="Fill" Value="{x:Null}"/></Style>
+  <Style Selector="ToggleButton"><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="8"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/></Style>
+  <Style Selector="ToggleButton:checked"><Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/><Setter Property="Background" Value="{DynamicResource RaisedBrush}"/></Style>
+</Styles>

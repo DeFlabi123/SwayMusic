@@ -1,0 +1,737 @@
+using System.Collections.ObjectModel;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Windows.Input;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
+using SwayMusic.Core;
+using SwayMusic.Core.Downloads;
+using SwayMusic.Core.Lyrics;
+using SwayMusic.Core.Networking;
+using SwayMusic.Core.Storage;
+using SwayMusic.Desktop.Playback;
+using SwayMusic.Desktop.Authentication;
+
+namespace SwayMusic.Desktop.ViewModels;
+
+public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
+{
+    private readonly HttpClient _http;
+    private readonly LibraryStore _library;
+    private readonly CredentialStore _credentials;
+    private readonly YouTubeMusicClient _music;
+    private readonly LyricsService _lyrics;
+    private DownloadService _downloads;
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly SemaphoreSlim _accountOperations = new(1, 1);
+    private Task? _initializationTask;
+    private readonly List<AsyncCommand> _commands = [];
+    private readonly HashSet<Task> _backgroundTasks = [];
+    private CancellationTokenSource? _pageRequest;
+    private CancellationTokenSource? _artworkRequest;
+    private CancellationTokenSource? _lyricsRequest;
+    private string? _highlightedTrackId;
+    private int _highlightedQueueIndex = -1;
+    private readonly DispatcherTimer _positionTimer;
+    private LyricsDocument? _lyricDocument;
+    private string? _continuation, _browseId, _lastTrackId, _localPlaylistId;
+    private string _pageKind = "home", _query = "", _pageTitle = "Home", _pageSubtitle = "Search for music, open local audio, or load your recommendations.";
+    private string _status = "", _newPlaylistName = "", _cookieInput = "", _accountStatus = "Not signed in";
+    private string _lyricsText = "Play a song, then open Lyrics.", _activeLyric = "";
+    private bool _busy, _visible = true, _disposed, _initialized, _isSeeking;
+    private TrackRow? _selectedTrack;
+    private BrowseItem? _selectedBrowseItem;
+    private LocalPlaylist? _selectedPlaylist;
+    private Bitmap? _artwork;
+    private TimeSpan _restoredPosition;
+    private bool _restoreSeekPending, _sessionRestored;
+
+    public MainViewModel(string? dataDirectory = null, IBrowserLoginService? browserLogin = null, HttpMessageHandler? httpHandler = null)
+    {
+        _http = new(httpHandler ?? new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            ConnectTimeout = TimeSpan.FromSeconds(15),
+            MaxConnectionsPerServer = 4
+        }) { Timeout = TimeSpan.FromSeconds(45) };
+        _browserLogin = browserLogin ?? new BrowserLoginService();
+        _library = new(dataDirectory);
+        _migrateLegacy = dataDirectory is null;
+        _credentials = new(dataDirectory);
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/1.0");
+        _music = new(_http);
+        _lyrics = new(_http, dataDirectory);
+        _downloads = new(_http, _library.DataDirectory, 2L * 1024 * 1024 * 1024);
+        Player = new(ResolveAsync, async (uri, token) => await HttpRangeStream.OpenAsync(_http, uri, token));
+        Player.Changed += OnPlayerChanged;
+        Player.PlaybackFailed += OnPlayerFailed;
+        _positionTimer = new(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdatePosition());
+        _positionTimer.Stop();
+        SearchCommand = Async(SearchAsync);
+        HomeCommand = Async(LoadHomeAsync);
+        LikesCommand = new RelayCommand(() => ShowLocal("likes"));
+        HistoryCommand = new RelayCommand(() => ShowLocal("history"));
+        DownloadsCommand = new RelayCommand(() => ShowLocal("downloads"));
+        QueueCommand = new RelayCommand(ToggleQueuePanel);
+        PlaylistsCommand = new RelayCommand(ShowPlaylists);
+        SettingsCommand = new RelayCommand(() => SetPage("settings", "Settings & account", "Your settings and library are stored locally."));
+        LyricsCommand = Async(ToggleLyricsPanelAsync);
+        PlaySelectedCommand = Async(PlaySelectedAsync);
+        ToggleCommand = new RelayCommand(Player.Toggle);
+        NextCommand = Async(() => Player.NextAsync(_lifetime.Token));
+        PreviousCommand = Async(() => Player.PreviousAsync(_lifetime.Token));
+        EnqueueCommand = new RelayCommand(() => { if (SelectedTrack is { } row) { Player.Enqueue(row.Track); Status = "Added to queue."; } });
+        LikeCommand = Async(LikeAsync);
+        RadioCommand = Async(RadioAsync);
+        DownloadCommand = Async(DownloadSelectedAsync);
+        RemoveCommand = Async(RemoveAsync);
+        MoveUpCommand = new RelayCommand(() => MoveQueue(-1));
+        MoveDownCommand = new RelayCommand(() => MoveQueue(1));
+        RepeatCommand = new RelayCommand(() => { Player.Repeat = (RepeatMode)(((int)Player.Repeat + 1) % 3); OnPropertyChanged(nameof(RepeatText)); });
+        MoreCommand = Async(LoadMoreAsync);
+        CreatePlaylistCommand = Async(CreatePlaylistAsync);
+        RenamePlaylistCommand = Async(RenamePlaylistAsync);
+        DeletePlaylistCommand = Async(DeletePlaylistAsync);
+        OpenPlaylistCommand = new RelayCommand(() => { if (SelectedPlaylist is { } playlist) OpenLocalPlaylist(playlist); });
+        AddToPlaylistCommand = Async(AddToPlaylistAsync);
+        SaveAccountCommand = Async(SaveAccountAsync);
+        SignOutCommand = Async(SignOutAsync);
+        SignInCommand = Async(SignInWithGoogleAsync);
+        CancelSignInCommand = new RelayCommand(() => _signInRequest?.Cancel());
+        SaveSettingsCommand = Async(SaveSettingsAsync);
+        CancelCommand = new RelayCommand(() => _pageRequest?.Cancel());
+        InitializeDesign();
+    }
+
+    private AsyncCommand Async(Func<Task> action)
+    {
+        var command = new AsyncCommand(action, ReportError);
+        _commands.Add(command);
+        return command;
+    }
+    public PlaybackService Player { get; }
+    public ObservableCollection<TrackRow> Tracks { get; } = [];
+    public ObservableCollection<BrowseItem> BrowseItems { get; } = [];
+    public ObservableCollection<LocalPlaylist> Playlists { get; } = [];
+    public TrackRow? SelectedTrack { get => _selectedTrack; set => Set(ref _selectedTrack, value); }
+    public BrowseItem? SelectedBrowseItem { get => _selectedBrowseItem; set => Set(ref _selectedBrowseItem, value); }
+    public LocalPlaylist? SelectedPlaylist { get => _selectedPlaylist; set => Set(ref _selectedPlaylist, value); }
+    public string Query { get => _query; set => Set(ref _query, value); }
+    public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
+    public string PageSubtitle { get => _pageSubtitle; private set => Set(ref _pageSubtitle, value); }
+    public string Status { get => _status; private set { if (Set(ref _status, value)) OnPropertyChanged(nameof(HasStatus)); } }
+    public bool HasStatus => Status.Length > 0;
+    public bool Busy { get => _busy; private set { if (Set(ref _busy, value)) { OnPropertyChanged(nameof(ShowEmpty)); OnPropertyChanged(nameof(CanRetryStartup)); } } }
+    public bool ShowSettings => _pageKind == "settings";
+    public bool ShowLyrics => _pageKind == "lyrics";
+    public bool ShowBrowse => _pageKind is "playlists" or "browse-items";
+    public bool ShowTracks => !ShowSettings && !ShowLyrics && !ShowBrowse;
+    public bool ShowCreatePlaylist => _pageKind == "playlists";
+    public bool IsQueue => _pageKind == "queue";
+    public bool HasMore => _continuation is not null;
+    public bool HasPlaylists => Playlists.Count > 0;
+    public string NewPlaylistName { get => _newPlaylistName; set => Set(ref _newPlaylistName, value); }
+    public string CookieInput { get => _cookieInput; set => Set(ref _cookieInput, value); }
+    public string AccountStatus { get => _accountStatus; private set => Set(ref _accountStatus, value); }
+    public bool FetchLyrics { get => _library.State.Settings.FetchLyrics; set { _library.State.Settings.FetchLyrics = value; OnPropertyChanged(); } }
+    public string Country { get => _library.State.Settings.Country; set { _library.State.Settings.Country = value; OnPropertyChanged(); } }
+    public string Language { get => _library.State.Settings.Language; set { _library.State.Settings.Language = value; OnPropertyChanged(); } }
+    public decimal DownloadBudgetMiB { get => _library.State.Settings.DownloadBudgetBytes / (1024m * 1024); set { _library.State.Settings.DownloadBudgetBytes = (long)(value * 1024 * 1024); OnPropertyChanged(); } }
+    public double Volume { get => Player.Volume * 100; set { Player.Volume = (float)(value / 100); OnPropertyChanged(); } }
+    public bool Shuffle { get => Player.Shuffle; set { Player.Shuffle = value; OnPropertyChanged(); } }
+    public string RepeatText => "Repeat: " + Player.Repeat;
+    public string PlayButtonText => Player.State == PlayerState.Playing ? "Pause" : Player.State == PlayerState.Loading ? "Cancel" : "Play";
+    public string NowTitle => Player.CurrentTrack?.Title ?? "Nothing playing";
+    public string NowArtist => Player.CurrentTrack?.Artist ?? "Choose a song to begin";
+    public Bitmap? Artwork { get => _artwork; private set => Set(ref _artwork, value); }
+    public double DurationSeconds => Math.Max(1, Player.Duration.TotalSeconds);
+    public double PositionSeconds => Player.Position.TotalSeconds;
+    public string PositionText => FormatTime(Player.Position);
+    public string DurationText => FormatTime(Player.Duration);
+    public string LyricsText { get => _lyricsText; private set => Set(ref _lyricsText, value); }
+    public string ActiveLyric { get => _activeLyric; private set => Set(ref _activeLyric, value); }
+
+    public ICommand SearchCommand { get; }
+    public ICommand HomeCommand { get; }
+    public ICommand LikesCommand { get; }
+    public ICommand HistoryCommand { get; }
+    public ICommand DownloadsCommand { get; }
+    public ICommand QueueCommand { get; }
+    public ICommand PlaylistsCommand { get; }
+    public ICommand SettingsCommand { get; }
+    public ICommand LyricsCommand { get; }
+    public ICommand PlaySelectedCommand { get; }
+    public ICommand ToggleCommand { get; }
+    public ICommand NextCommand { get; }
+    public ICommand PreviousCommand { get; }
+    public ICommand EnqueueCommand { get; }
+    public ICommand LikeCommand { get; }
+    public ICommand RadioCommand { get; }
+    public ICommand DownloadCommand { get; }
+    public ICommand RemoveCommand { get; }
+    public ICommand MoveUpCommand { get; }
+    public ICommand MoveDownCommand { get; }
+    public ICommand RepeatCommand { get; }
+    public ICommand MoreCommand { get; }
+    public ICommand CreatePlaylistCommand { get; }
+    public ICommand RenamePlaylistCommand { get; }
+    public ICommand DeletePlaylistCommand { get; }
+    public ICommand OpenPlaylistCommand { get; }
+    public ICommand AddToPlaylistCommand { get; }
+    public ICommand SaveAccountCommand { get; }
+    public ICommand SignOutCommand { get; }
+    public ICommand SaveSettingsCommand { get; }
+    public ICommand CancelCommand { get; }
+
+    public Task InitializeAsync() => _initializationTask ??= InitializeCoreAsync();
+
+    private async Task InitializeCoreAsync()
+    {
+        Busy = true; Status = "Preparing your library…";
+        try
+        {
+            string? migrationMessage = null;
+            if (_migrateLegacy) migrationMessage = (await DataMigration.EnsureAsync(_lifetime.Token)).Message;
+            await _library.LoadAsync(_lifetime.Token);
+            _initialized = true;
+            await _accountOperations.WaitAsync(_lifetime.Token);
+            try
+            {
+                try { ApplyAccountSession(await _credentials.LoadAccountAsync(_lifetime.Token)); }
+                catch (Exception error) when (error is IOException or CryptographicException or UnauthorizedAccessException)
+                {
+                    ApplyAccountSession(null);
+                    AccountStatus = "Your saved session could not be read. Sign in again to reconnect.";
+                }
+            }
+            finally { _accountOperations.Release(); }
+            _lifetime.Token.ThrowIfCancellationRequested();
+            _music.Country = _library.State.Settings.Country;
+            _music.Language = _library.State.Settings.Language;
+            Player.Volume = (float)_library.State.Settings.Volume;
+            Player.Shuffle = _library.State.Settings.Shuffle;
+            if (Enum.TryParse<RepeatMode>(_library.State.Settings.RepeatMode, out var repeat)) Player.Repeat = repeat;
+            _downloads.BudgetBytes = _library.State.Settings.DownloadBudgetBytes;
+            RestoreDesignPreferences();
+            RefreshPlaylists();
+            var session = _library.State.Session;
+            Player.RestoreQueue(session.Queue, session.CurrentIndex);
+            _sessionRestored = true;
+            _restoredPosition = session.Position;
+            _restoreSeekPending = _restoredPosition > TimeSpan.Zero;
+            foreach (var property in new[] { nameof(Country), nameof(Language), nameof(DownloadBudgetMiB), nameof(FetchLyrics), nameof(Volume), nameof(Shuffle), nameof(RepeatText) }) OnPropertyChanged(property);
+            if (_library.RecoveryMessage is { } recovery) Status = recovery;
+            else if (!string.IsNullOrWhiteSpace(migrationMessage)) Status = migrationMessage;
+            else Status = "";
+            if (_library.State.History.Count > 0)
+            {
+                ShowTracksFor(_library.State.History.Select(h => h.Track));
+                PageSubtitle = "Recently played. Select Home to load online recommendations.";
+            }
+            RefreshHomeCards();
+            IsReady = true;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { ReportError(ex); }
+        finally { Busy = false; }
+    }
+
+    public void SetWindowVisible(bool visible) { _visible = visible; UpdateTimer(); }
+    public (double Width, double Height) GetWindowSize() => (_library.State.Settings.WindowWidth, _library.State.Settings.WindowHeight);
+    public void SetWindowSize(double width, double height) { _library.State.Settings.WindowWidth = width; _library.State.Settings.WindowHeight = height; }
+
+    private void SetPage(string kind, string title, string subtitle)
+    {
+        _pageRequest?.Cancel();
+        if (Busy) Status = "";
+        Busy = false;
+        _pageKind = kind;
+        _continuation = null;
+        _localPlaylistId = null;
+        SelectedTrack = null;
+        PageTitle = title;
+        PageSubtitle = subtitle;
+        foreach (var property in new[] { nameof(ShowTracks), nameof(ShowSettings), nameof(ShowBrowse), nameof(ShowCreatePlaylist), nameof(ShowLyrics), nameof(IsQueue), nameof(HasMore) }) OnPropertyChanged(property);
+        RefreshDesignPage();
+    }
+
+    private CancellationToken BeginRequest(string message)
+    {
+        _pageRequest?.Cancel();
+        _pageRequest?.Dispose();
+        _pageRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        Status = message;
+        Busy = true;
+        return _pageRequest.Token;
+    }
+
+    private bool IsCurrentRequest(CancellationToken token) => !_disposed && _pageRequest?.Token == token;
+    private void EndRequest(CancellationToken token) { if (IsCurrentRequest(token)) Busy = false; }
+
+    public async Task SearchAsync()
+    {
+        var query = Query.Trim();
+        if (query.Length == 0) return;
+        if (Uri.TryCreate(query, UriKind.Absolute, out var uri) && (uri.Host == "youtu.be" || uri.Host == "youtube.com" || uri.Host.EndsWith(".youtube.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            var parameters = ParseQuery(uri.Query);
+            if (parameters.TryGetValue("list", out var list)) { await OpenOnlineBrowseAsync(new(list, "Playlist", "", null, "playlist")); return; }
+            var id = parameters.GetValueOrDefault("v") ?? (uri.Host == "youtu.be" ? uri.AbsolutePath.Trim('/') : null);
+            if (!string.IsNullOrWhiteSpace(id)) { await Player.PlayTrackAsync(new(id, id, "YouTube Music"), _lifetime.Token); return; }
+        }
+        SetPage("search", "Search results", query);
+        var token = BeginRequest("Searching YouTube Music…");
+        try { ApplyPage(await _music.SearchAsync(query, token), token); Status = Tracks.Count == 0 ? "No songs found." : $"{Tracks.Count} songs"; }
+        finally { EndRequest(token); }
+    }
+
+    private async Task LoadHomeAsync()
+    {
+        SetPage("home", "Home", "Your YouTube Music recommendations");
+        var token = BeginRequest("Loading recommendations…");
+        try { ApplyPage(await _music.HomeAsync(token), token); Status = ""; }
+        finally { EndRequest(token); }
+    }
+
+    private void ApplyPage(MusicPage page, CancellationToken token, bool append = false)
+    {
+        token.ThrowIfCancellationRequested();
+        if (!append) Tracks.Clear();
+        foreach (var track in page.Tracks) Tracks.Add(new(track));
+        _continuation = page.Continuation;
+        OnPropertyChanged(nameof(HasMore));
+        if (Tracks.Count == 0 && page.Items is { Count: > 0 })
+        {
+            _pageKind = "browse-items";
+            BrowseItems.Clear();
+            foreach (var item in page.Items) BrowseItems.Add(item);
+            OnPropertyChanged(nameof(ShowTracks)); OnPropertyChanged(nameof(ShowBrowse));
+        }
+        SelectedTrack ??= Tracks.FirstOrDefault();
+        RefreshHomeCards();
+        RefreshDesignPage();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        if (_continuation is null) return;
+        var token = BeginRequest("Loading more…");
+        try
+        {
+            var page = _pageKind == "search" ? await _music.SearchContinuationAsync(_continuation, token) : await _music.BrowseContinuationAsync(_continuation, token);
+            ApplyPage(page, token, true); Status = $"{Tracks.Count} songs";
+        }
+        finally { EndRequest(token); }
+    }
+
+    private void ShowLocal(string kind)
+    {
+        SetPage(kind, kind switch { "likes" => "Liked songs", "history" => "Listening history", "queue" => "Playback queue", _ => "Downloads" }, "Double-click to play. Right-click a song for more actions.");
+        ShowTracksFor(kind switch
+        {
+            "likes" => _library.State.LikedTracks,
+            "history" => _library.State.History.Select(h => h.Track),
+            "queue" => Player.Queue,
+            _ => _downloads.ListDownloads().Select(d => d.Track with { LocalPath = d.FilePath })
+        });
+    }
+
+    private void ShowTracksFor(IEnumerable<Track> tracks)
+    {
+        Tracks.Clear();
+        foreach (var track in tracks) Tracks.Add(new(track));
+        SelectedTrack = Tracks.FirstOrDefault();
+        RefreshDesignPage();
+    }
+
+    private void RefreshPlaylists()
+    {
+        Playlists.Clear();
+        foreach (var playlist in _library.State.Playlists) Playlists.Add(playlist);
+        SelectedPlaylist ??= Playlists.FirstOrDefault();
+        OnPropertyChanged(nameof(HasPlaylists));
+    }
+
+    private void ShowPlaylists()
+    {
+        SetPage("playlists", "Playlists", "Double-click to open a local playlist. Paste a YouTube playlist URL into Search to browse online.");
+        BrowseItems.Clear();
+        foreach (var playlist in _library.State.Playlists) BrowseItems.Add(new(playlist.Id, playlist.Name, $"{playlist.Tracks.Count} songs · local playlist", null, "local"));
+    }
+
+    private void OpenLocalPlaylist(LocalPlaylist playlist)
+    {
+        SetPage("local-playlist", playlist.Name, $"{playlist.Tracks.Count} songs · local playlist");
+        _localPlaylistId = playlist.Id;
+        SelectedPlaylist = playlist;
+        ShowTracksFor(playlist.Tracks);
+    }
+
+    public async Task OpenSelectedBrowseAsync()
+    {
+        if (SelectedBrowseItem is not { } item) return;
+        if (item.Kind == "local") { var playlist = _library.State.Playlists.Find(p => p.Id == item.Id); if (playlist is not null) OpenLocalPlaylist(playlist); }
+        else await OpenOnlineBrowseAsync(item);
+    }
+
+    private async Task OpenOnlineBrowseAsync(BrowseItem item)
+    {
+        SetPage("online-playlist", item.Title, item.Subtitle);
+        _browseId = item.Id;
+        var token = BeginRequest("Loading music…");
+        try { ApplyPage(await _music.BrowseAsync(item.Id, token), token); Status = ""; }
+        finally { EndRequest(token); }
+    }
+
+    private async Task CreatePlaylistAsync()
+    {
+        var playlist = await _library.CreatePlaylistAsync(NewPlaylistName, _lifetime.Token);
+        NewPlaylistName = "";
+        RefreshPlaylists();
+        SelectedPlaylist = playlist;
+        ShowPlaylists();
+        Status = "Playlist created.";
+    }
+
+    private async Task RenamePlaylistAsync()
+    {
+        if (SelectedBrowseItem is not { Kind: "local" } item) { Status = "Select a local playlist first."; return; }
+        await _library.RenamePlaylistAsync(item.Id, NewPlaylistName, _lifetime.Token);
+        NewPlaylistName = "";
+        RefreshPlaylists();
+        ShowPlaylists();
+        Status = "Playlist renamed.";
+    }
+
+    private async Task DeletePlaylistAsync()
+    {
+        if (SelectedBrowseItem is not { Kind: "local" } item) { Status = "Select a local playlist first."; return; }
+        await _library.DeletePlaylistAsync(item.Id, _lifetime.Token);
+        if (SelectedPlaylist?.Id == item.Id) SelectedPlaylist = null;
+        RefreshPlaylists(); ShowPlaylists();
+        Status = "Local playlist removed. Audio files were retained.";
+    }
+
+    private async Task AddToPlaylistAsync()
+    {
+        if (SelectedPlaylist is not { } playlist || SelectedTrack is not { } row) { Status = "Select a song and a playlist first."; return; }
+        await _library.AddToPlaylistAsync(playlist.Id, row.Track, _lifetime.Token);
+        Status = $"Added to {playlist.Name}.";
+    }
+
+    public async Task PlaySelectedAsync()
+    {
+        if (SelectedTrack is not { } selected) return;
+        _restoreSeekPending = false;
+        await Player.SetQueueAsync(Tracks.Select(t => t.Track), Tracks.IndexOf(selected), _lifetime.Token);
+    }
+
+    private async Task LikeAsync()
+    {
+        var track = SelectedTrack?.Track ?? Player.CurrentTrack;
+        if (track is null) return;
+        bool liked = await _library.ToggleLikeAsync(track, _lifetime.Token);
+        Status = liked ? "Added to liked songs." : "Removed from liked songs.";
+        if (_pageKind == "likes") ShowLocal("likes");
+    }
+
+    private async Task RadioAsync()
+    {
+        var track = SelectedTrack?.Track ?? Player.CurrentTrack;
+        if (track is null || track.LocalPath is not null) return;
+        SetPage("radio", "Radio", "Based on " + track.Title);
+        var token = BeginRequest("Loading related songs…");
+        try { ApplyPage(await _music.RadioAsync(track, token), token); Status = ""; }
+        finally { EndRequest(token); }
+    }
+
+    private async Task DownloadSelectedAsync()
+    {
+        var track = SelectedTrack?.Track ?? Player.CurrentTrack;
+        if (track is null) return;
+        if (track.LocalPath is not null) { Status = "This song is already a local file."; return; }
+        var token = BeginRequest("Resolving download…");
+        try
+        {
+            var stream = await _music.GetStreamAsync(track, token);
+            var progress = new Progress<DownloadProgress>(p =>
+            {
+                if (IsCurrentRequest(token) && !token.IsCancellationRequested)
+                    Status = $"Downloading {track.Title} · {p.BytesReceived / (1024 * 1024)} MiB";
+            });
+            await _downloads.DownloadAsync(track, stream.Url, progress, token);
+            if (IsCurrentRequest(token) && !token.IsCancellationRequested) Status = "Saved for offline playback.";
+        }
+        finally { EndRequest(token); }
+    }
+
+    private async Task RemoveAsync()
+    {
+        if (SelectedTrack is not { } row) return;
+        int index = Tracks.IndexOf(row);
+        if (_pageKind == "queue") { await Player.RemoveAtAsync(index, _lifetime.Token); ShowLocal("queue"); }
+        else if (_pageKind == "likes") { await _library.ToggleLikeAsync(row.Track, _lifetime.Token); ShowLocal("likes"); }
+        else if (_pageKind == "local-playlist" && _localPlaylistId is { } id) { await _library.RemoveFromPlaylistAsync(id, index, _lifetime.Token); Tracks.RemoveAt(index); }
+        else if (_pageKind == "downloads") { await _downloads.DeleteAsync(row.Track.Id, _lifetime.Token); ShowLocal("downloads"); }
+        else Status = "Remove is available in the queue, liked songs, local playlists, and downloads.";
+    }
+
+    private void MoveQueue(int direction)
+    {
+        if (!IsQueue || SelectedTrack is not { } row) return;
+        int from = Tracks.IndexOf(row), to = from + direction;
+        if (to < 0 || to >= Tracks.Count) return;
+        Player.Move(from, direction);
+        Tracks.Move(from, to);
+        SelectedTrack = row;
+    }
+
+    private async Task<string> ResolveAsync(Track track, CancellationToken token)
+    {
+        if (track.LocalPath is { } local)
+        {
+            if (!File.Exists(local)) throw new FileNotFoundException("The local audio file is no longer available.", local);
+            return local;
+        }
+        if (_downloads.FindDownloaded(track.Id) is { } offline) return offline;
+        return (await _music.GetStreamAsync(track, token)).Url.AbsoluteUri;
+    }
+
+    public async Task OpenLocalFilesAsync(IEnumerable<string> paths)
+    {
+        var tracks = new List<Track>();
+        foreach (string path in paths)
+        {
+            string id = "local:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(path).ToUpperInvariant())));
+            tracks.Add(new(id, Path.GetFileNameWithoutExtension(path), "Local file", LocalPath: path));
+        }
+        if (tracks.Count == 0) return;
+        SetPage("local", "Local audio", "Native Windows audio playback");
+        ShowTracksFor(tracks);
+        _restoreSeekPending = false;
+        await Player.SetQueueAsync(tracks, 0, _lifetime.Token);
+    }
+
+    private async Task FetchLyricsAsync()
+    {
+        _lyricDocument = null; ActiveLyric = "";
+        if (Player.CurrentTrack is not { } track) { LyricsText = "Play a song to look up lyrics."; return; }
+        if (!FetchLyrics) { LyricsText = "Lyrics lookup is disabled in Settings."; return; }
+        _lyricsRequest?.Cancel(); _lyricsRequest?.Dispose();
+        _lyricsRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        var request = _lyricsRequest;
+        var token = request.Token;
+        LyricsText = "Finding lyrics…";
+        try
+        {
+            var document = await _lyrics.GetAsync(track, token);
+            token.ThrowIfCancellationRequested();
+            if (_disposed || _lyricsRequest != request) return;
+            _lyricDocument = document;
+            LyricsText = _lyricDocument is { IsSynced: true } synced ? string.Join(Environment.NewLine, synced.Lines.Select(l => l.Text)) : _lyricDocument?.Text ?? "No lyrics found for this track.";
+            UpdatePosition();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (!_disposed && _lyricsRequest == request) LyricsText = "Lyrics unavailable. " + error.Message; }
+    }
+
+    private async Task SaveAccountAsync()
+    {
+        string cookie = CookieInput.Trim();
+        if (cookie.StartsWith("Cookie:", StringComparison.OrdinalIgnoreCase)) cookie = cookie[7..].Trim();
+        if (cookie.Length == 0) { Status = "Paste a YouTube Music Cookie header first."; return; }
+        if (cookie.IndexOfAny(['\r', '\n']) >= 0) throw new ArgumentException("Paste only the Cookie request header value, on one line.");
+        _accountGeneration++;
+        _signInRequest?.Cancel();
+        await _accountOperations.WaitAsync(_lifetime.Token);
+        try
+        {
+            await _credentials.SaveCookieAsync(cookie, _lifetime.Token);
+            ApplyAccountSession(new(cookie));
+            CookieInput = "";
+            Status = "Account saved. Select Home to load account recommendations.";
+        }
+        finally { _accountOperations.Release(); }
+    }
+
+    private async Task SignOutAsync()
+    {
+        _accountGeneration++;
+        _signInRequest?.Cancel();
+        await _accountOperations.WaitAsync(_lifetime.Token);
+        try
+        {
+            await _credentials.SaveAccountAsync(null, _lifetime.Token);
+            ApplyAccountSession(null);
+            CookieInput = ""; Status = "Signed out.";
+        }
+        finally { _accountOperations.Release(); }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        var settings = _library.State.Settings;
+        settings.Volume = Player.Volume; settings.Shuffle = Player.Shuffle; settings.RepeatMode = Player.Repeat.ToString();
+        if (Country.Length != 2 || !Country.All(char.IsAsciiLetter)) throw new ArgumentException("Country must be a two-letter code.");
+        settings.Country = Country.ToUpperInvariant();
+        _music.Country = settings.Country;
+        _music.Language = settings.Language;
+        await _library.SaveAsync(_lifetime.Token);
+        _downloads.BudgetBytes = settings.DownloadBudgetBytes;
+        Status = "Settings saved.";
+    }
+
+    private void OnPlayerFailed(object? sender, Exception error) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_disposed) return;
+        if (Player.CurrentTrack is { } track) _music.InvalidateStream(track.Id);
+        ReportError(error);
+    });
+    private void OnPlayerChanged(object? sender, EventArgs args) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_disposed) return;
+        foreach (var property in new[] { nameof(PlayButtonText), nameof(PlayIconKind), nameof(NowTitle), nameof(NowArtist), nameof(DurationSeconds), nameof(DurationText), nameof(RepeatText), nameof(Shuffle), nameof(Volume) }) OnPropertyChanged(property);
+        UpdatePosition(); UpdateTimer();
+        RefreshQueue();
+        if (_highlightedTrackId != Player.CurrentTrack?.Id || _highlightedQueueIndex != Player.CurrentIndex)
+        {
+            _highlightedTrackId = Player.CurrentTrack?.Id;
+            _highlightedQueueIndex = Player.CurrentIndex;
+            RefreshDesignPage();
+        }
+        var track = Player.CurrentTrack;
+        if (track is not null && _lastTrackId != track.Id && Player.State == PlayerState.Playing)
+        {
+            _lastTrackId = track.Id;
+            TrackBackground(RecordTrackAsync(track));
+            TrackBackground(LoadArtworkAsync(track.ThumbnailUrl));
+            if (ShowLyrics || IsLyricsPanel) TrackBackground(FetchLyricsAsync());
+        }
+        if (_restoreSeekPending && Player.State == PlayerState.Playing)
+        {
+            _restoreSeekPending = false;
+            TrackBackground(SeekSafelyAsync(_restoredPosition));
+        }
+    });
+
+    private async Task RecordTrackAsync(Track track)
+    {
+        try { await _library.AddHistoryAsync(track, _lifetime.Token); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { ReportError(error); }
+    }
+
+    private void TrackBackground(Task task)
+    {
+        _backgroundTasks.Add(task);
+        _ = ObserveBackgroundAsync(task);
+    }
+
+    private async Task ObserveBackgroundAsync(Task task)
+    {
+        try { await task; }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (!_disposed) ReportError(error); }
+        finally { _backgroundTasks.Remove(task); }
+    }
+
+    private async Task LoadArtworkAsync(string? url)
+    {
+        _artworkRequest?.Cancel(); _artworkRequest?.Dispose();
+        _artworkRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        var token = _artworkRequest.Token;
+        Bitmap? bitmap = null;
+        try
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https")
+            {
+                using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
+                response.EnsureSuccessStatusCode();
+                if (response.Content.Headers.ContentLength is > 2 * 1024 * 1024) return;
+                using var source = await response.Content.ReadAsStreamAsync(token);
+                using var memory = new MemoryStream();
+                byte[] buffer = new byte[16384];
+                int count;
+                while ((count = await source.ReadAsync(buffer, token)) > 0)
+                {
+                    if (memory.Length + count > 2 * 1024 * 1024) return;
+                    await memory.WriteAsync(buffer.AsMemory(0, count), token);
+                }
+                memory.Position = 0;
+                bitmap = await Task.Run(() => Bitmap.DecodeToWidth(memory, 384), token);
+            }
+            token.ThrowIfCancellationRequested();
+            var old = Artwork; Artwork = bitmap; bitmap = null; old?.Dispose();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or ArgumentException) { }
+        finally { bitmap?.Dispose(); }
+    }
+
+    private void UpdateTimer() { if (_visible && Player.State == PlayerState.Playing) _positionTimer.Start(); else _positionTimer.Stop(); }
+    private void UpdatePosition()
+    {
+        if (!_isSeeking) OnPropertyChanged(nameof(PositionSeconds));
+        OnPropertyChanged(nameof(PositionText));
+        if ((ShowLyrics || IsLyricsPanel) && _lyricDocument is { IsSynced: true } lyrics)
+        {
+            int line = lyrics.GetActiveLine(Player.Position);
+            ActiveLyric = line >= 0 ? lyrics.Lines[line].Text : "";
+        }
+    }
+    public void BeginSeek() => _isSeeking = true;
+    public async Task EndSeekAsync(TimeSpan position)
+    {
+        try { await SeekSafelyAsync(position); }
+        finally { _isSeeking = false; UpdatePosition(); }
+    }
+    public async Task SeekSafelyAsync(TimeSpan position)
+    {
+        try { await Player.SeekAsync(position, _lifetime.Token); UpdatePosition(); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { ReportError(ex); }
+    }
+    public void ReportError(Exception error) { if (error is not OperationCanceledException) Status = error is HttpRequestException ? "Network request failed. " + error.Message : error.Message; }
+    private static string FormatTime(TimeSpan time) => time.TotalHours >= 1 ? time.ToString(@"h\:mm\:ss") : $"{(int)time.TotalMinutes}:{time.Seconds:00}";
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int split = pair.IndexOf('=');
+            if (split > 0) result[Uri.UnescapeDataString(pair[..split])] = Uri.UnescapeDataString(pair[(split + 1)..]);
+        }
+        return result;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _positionTimer.Stop();
+        _lifetime.Cancel(); _pageRequest?.Cancel(); _artworkRequest?.Cancel(); _lyricsRequest?.Cancel();
+        if (_initializationTask is { } initialization) await initialization;
+        if (_sessionRestored)
+        {
+            _library.State.Settings.Volume = Player.Volume;
+            _library.State.Settings.Shuffle = Player.Shuffle;
+            _library.State.Settings.RepeatMode = Player.Repeat.ToString();
+            _library.State.Session = new() { Queue = Player.Queue.ToList(), CurrentIndex = Player.CurrentIndex, Position = Player.Position };
+        }
+        Player.Changed -= OnPlayerChanged; Player.PlaybackFailed -= OnPlayerFailed;
+        await Player.DisposeAsync();
+        var pending = _commands.Select(command => command.RunningTask).Concat(_backgroundTasks.ToArray()).ToArray();
+        try { await Task.WhenAll(pending); }
+        catch (Exception) { /* Command failures are already surfaced by their owners. */ }
+        try { if (_initialized) await _library.SaveAsync(); }
+        finally
+        {
+            Artwork?.Dispose();
+            ClearHomeCards();
+            _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _http.Dispose();
+            _pageRequest?.Dispose(); _artworkRequest?.Dispose(); _lyricsRequest?.Dispose(); _accountOperations.Dispose(); _lifetime.Dispose();
+        }
+    }
+}

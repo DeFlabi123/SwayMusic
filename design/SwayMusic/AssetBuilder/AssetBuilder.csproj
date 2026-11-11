@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="SkiaSharp" HintPath="..\..\..\.nuget\packages\skiasharp\3.119.4\lib\net10.0\SkiaSharp.dll" />
+    <Content Include="..\..\..\.nuget\packages\skiasharp.nativeassets.win32\3.119.4\runtimes\win-x64\native\libSkiaSharp.dll" Link="libSkiaSharp.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
