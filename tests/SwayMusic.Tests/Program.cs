@@ -46,6 +46,7 @@ try
     await FragmentedAacTests.RunAsync();
     Console.WriteLine("PASS fragmented AAC packet framing, sparse indexing, seeking, cancellation and bounds");
     await PlaybackTests.RunAsync();
+    await PrefetchTests.RunAsync();
     Console.WriteLine("PASS queue, shuffle, repeat, cancellation, restore");
     if (args.Contains("--audio"))
     {

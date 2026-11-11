@@ -21,6 +21,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly LibraryStore _library;
     private readonly CredentialStore _credentials;
     private readonly YouTubeMusicClient _music;
+    private readonly TrackSourcePrefetcher _sourcePrefetch;
     private readonly LyricsService _lyrics;
     private DownloadService _downloads;
     private readonly CancellationTokenSource _lifetime = new();
@@ -64,7 +65,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _music = new(_http);
         _lyrics = new(_http, dataDirectory);
         _downloads = new(_http, _library.DataDirectory, 2L * 1024 * 1024 * 1024);
-        Player = new(ResolveAsync, async (uri, token) => await HttpRangeStream.OpenAsync(_http, uri, token));
+        _sourcePrefetch = new(ResolveAsync);
+        Player = new(_sourcePrefetch.ResolveAsync, async (uri, token) => await HttpRangeStream.OpenAsync(_http, uri, token));
         Player.Changed += OnPlayerChanged;
         Player.PlaybackFailed += OnPlayerFailed;
         _positionTimer = new(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdatePosition());
@@ -593,6 +595,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         if (_disposed) return;
         foreach (var property in new[] { nameof(PlayButtonText), nameof(PlayIconKind), nameof(NowTitle), nameof(NowArtist), nameof(DurationSeconds), nameof(DurationText), nameof(RepeatText), nameof(Shuffle), nameof(Volume) }) OnPropertyChanged(property);
+        if (Player.State != PlayerState.Loading) _sourcePrefetch.Prepare(Player.State == PlayerState.Playing ? Player.NextTrack : null);
         UpdatePosition(); UpdateTimer();
         RefreshQueue();
         if (_highlightedTrackId != Player.CurrentTrack?.Id || _highlightedQueueIndex != Player.CurrentIndex)
@@ -722,6 +725,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         Player.Changed -= OnPlayerChanged; Player.PlaybackFailed -= OnPlayerFailed;
         await Player.DisposeAsync();
+        await _sourcePrefetch.DisposeAsync();
         var pending = _commands.Select(command => command.RunningTask).Concat(_backgroundTasks.ToArray()).ToArray();
         try { await Task.WhenAll(pending); }
         catch (Exception) { /* Command failures are already surfaced by their owners. */ }

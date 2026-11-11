@@ -29,6 +29,8 @@ public sealed class PlaybackQueue
     }
 
     public Track[] Snapshot() => _tracks.ToArray();
+    public Track? PeekNext() => _cursor + 1 < _order.Count ? _tracks[_order[_cursor + 1]]
+        : Repeat == RepeatMode.All && _order.Count > 0 ? _tracks[_order[0]] : null;
 
     public void Set(IEnumerable<Track> tracks, int startIndex)
     {

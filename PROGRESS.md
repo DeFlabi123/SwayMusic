@@ -2,6 +2,13 @@
 
 Windows repository: `C:\Users\schmi\Documents\GitHub\SwayMusic`. The supplied Metrolist Android tree remains read-only and its attribution is retained.
 
+## Playback startup delay
+
+- Added preparation of one upcoming song's stream URL while the current song plays. It follows the queue's actual shuffle order, reuses an in-flight preparation when Next is pressed, and cancels unrelated work for a foreground selection. Pause, stop, account changes and shutdown cancel preparation. No decoder or whole audio file is preloaded, and session restore does not start preparation.
+- Completed preparations use the existing bounded, expiry-aware stream URL cache. Speculative failures do not surface as playback errors; normal foreground resolution retries them.
+- A live measurement found 10,561 ms uncached URL resolution versus under 1 ms for a cached URL, with 173 ms audio setup. This identifies URL discovery as the bottleneck in that sample; it is not a promised startup time for all tracks/networks. First-time arbitrary selections can still require resolution.
+- Release compilation passed with zero warnings/errors. The deterministic/native/live suite passed in 52.61 seconds, including new queue/preparation tests, real streaming, pause/seek/resume and offline playback. Headless UI/account tests passed. Evidence: `artifacts/playback-startup-regression.log`.
+
 ## Google sign-in
 
 - Settings now offers Sign in with Google through installed Edge/Chrome, with a unique temporary profile and private inherited CDP pipes. The browser is launched only on request and is not bundled or used as the application frontend.

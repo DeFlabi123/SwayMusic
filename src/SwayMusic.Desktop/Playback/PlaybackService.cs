@@ -1,6 +1,7 @@
 using SwayMusic.Core;
 using SwayMusic.Core.Networking;
 using NAudio.Wave;
+using System.Diagnostics;
 
 namespace SwayMusic.Desktop.Playback;
 
@@ -43,6 +44,8 @@ public sealed class PlaybackService : IAsyncDisposable
 
     public PlayerState State { get { lock (_sync) return _state; } }
     public Track? CurrentTrack { get { lock (_sync) return _queue.Current; } }
+    public Track? NextTrack { get { lock (_sync) return _queue.PeekNext(); } }
+    public PlaybackStartupTiming? LastStartupTiming { get; private set; }
     public int CurrentIndex { get { lock (_sync) return _queue.CurrentIndex; } }
     public IReadOnlyList<Track> Queue { get { lock (_sync) return _queue.Snapshot(); } }
     public TimeSpan Position
@@ -279,7 +282,10 @@ public sealed class PlaybackService : IAsyncDisposable
 
     private async Task OpenCurrentAsync(CancellationToken cancellationToken, bool autoPlay = true)
     {
+        var releaseWatch = Stopwatch.StartNew();
+        LastStartupTiming = null;
         await ReleaseSessionAsync().ConfigureAwait(false);
+        var releaseMilliseconds = releaseWatch.Elapsed.TotalMilliseconds;
         Track? track;
         long requestVersion;
         lock (_sync) { track = _queue.Current; requestVersion = _requestVersion; }
@@ -287,7 +293,9 @@ public sealed class PlaybackService : IAsyncDisposable
         SetState(PlayerState.Loading);
         try
         {
+            var startup = Stopwatch.StartNew();
             var source = track.LocalPath ?? await _resolve(track, cancellationToken).ConfigureAwait(false);
+            var resolved = startup.Elapsed.TotalMilliseconds;
             cancellationToken.ThrowIfCancellationRequested();
             var session = await CreateSessionAsync(source, requestVersion, cancellationToken).ConfigureAwait(false);
             bool rejected;
@@ -309,6 +317,7 @@ public sealed class PlaybackService : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 throw new ObjectDisposedException(nameof(PlaybackService));
             }
+            LastStartupTiming = new(resolved, startup.Elapsed.TotalMilliseconds - resolved, releaseMilliseconds);
             Notify();
         }
         catch (OperationCanceledException) { SetState(PlayerState.Stopped); throw; }
@@ -468,3 +477,5 @@ public sealed class PlaybackService : IAsyncDisposable
         public void Dispose() => owner.CompleteLoad(source);
     }
 }
+
+public sealed record PlaybackStartupTiming(double ResolutionMilliseconds, double AudioSetupMilliseconds, double PreviousSessionReleaseMilliseconds);

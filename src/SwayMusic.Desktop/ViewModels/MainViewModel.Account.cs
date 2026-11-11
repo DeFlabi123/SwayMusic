@@ -26,6 +26,7 @@ public sealed partial class MainViewModel
 
     private void ApplyAccountSession(AccountSession? session)
     {
+        _sourcePrefetch.Cancel();
         if (IsReady)
         {
             _pageRequest?.Cancel();
