@@ -80,9 +80,18 @@ public partial class MainWindow : Window
     {
         if (args.Key == Key.Enter) { _viewModel.SearchCommand.Execute(null); args.Handled = true; }
     }
-    private void TrackDoubleTapped(object? sender, TappedEventArgs args)
+    private static TrackRow? TappedSong(object? sender, TappedEventArgs args)
     {
-        if (args.Source is Control control && (control is Button || control.GetVisualAncestors().OfType<Button>().Any())) return;
+        if (sender is not ListBox list || args.Source is not Control source) return null;
+        if (source is Button || source.GetVisualAncestors().OfType<Button>().Any()) return null;
+        var item = source as ListBoxItem ?? source.GetVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+        return item?.DataContext is TrackRow row && list.Items.Contains(row) ? row : null;
+    }
+    private void TrackTapped(object? sender, TappedEventArgs args)
+    {
+        if (TappedSong(sender, args) is not { } row) return;
+        args.Handled = true;
+        _viewModel.SelectedTrack = row;
         _viewModel.PlaySelectedCommand.Execute(null);
     }
     private async void ArtistNameClicked(object? sender, RoutedEventArgs args)
@@ -108,22 +117,30 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception error) { _viewModel.ReportError(error); }
     }
-    private async void QueueDoubleTapped(object? sender, TappedEventArgs args)
+    private async void QueueTapped(object? sender, TappedEventArgs args)
     {
-        if (args.Source is Control control && (control is Button || control.GetVisualAncestors().OfType<Button>().Any())) return;
+        if (TappedSong(sender, args) is not { } row) return;
+        args.Handled = true;
+        _viewModel.SelectedQueueTrack = row;
         try { await _viewModel.PlayQueueSelectedAsync(); }
         catch (OperationCanceledException) { }
         catch (Exception error) { _viewModel.ReportError(error); }
     }
     private void TrackContextRequested(object? sender, ContextRequestedEventArgs args)
     {
+        if (sender is ListBox { ContextMenu: { } menu }) menu.PlacementTarget = null;
         if (args.Source is Control { DataContext: TrackRow row }) _viewModel.SelectedTrack = row;
     }
     private void RowActionsClicked(object? sender, RoutedEventArgs args)
     {
         if (sender is not Button { Tag: TrackRow row } button) return;
         _viewModel.SelectedTrack = row;
-        (_viewModel.IsArtistPage ? ArtistTrackList : TrackList).ContextMenu?.Open(button);
+        var list = _viewModel.IsArtistPage ? ArtistTrackList : TrackList;
+        if (list.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = button;
+            menu.Open(list);
+        }
     }
     private void TrackMenuClicked(object? sender, RoutedEventArgs args)
     {

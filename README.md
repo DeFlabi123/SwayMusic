@@ -8,7 +8,7 @@ Playback now first uses Metrolist's visitor-backed native extraction fast path. 
 
 Open `artifacts/SwayMusic-win-x64/SwayMusic.exe`. This is the single current release folder. Keep its supporting files and `tools` directory together. The release includes .NET; no installer or administrator rights are required. If an archive is explicitly requested, extract it before opening the executable.
 
-Search YouTube Music, double-click a track to play, or open local AAC/M4A, MP3, WAV, FLAC and other Windows-supported audio. Paste a YouTube Music playlist URL into Search to browse its songs. Home loads online recommendations when selected; startup restores the local session without starting playback or blocking on the network. The queue, shuffle/repeat, volume, seeking, offline downloads, local playlists, liked songs, history and LRCLIB lyrics are available from the window. Windows media controls expose metadata and transport actions.
+Search YouTube Music, click a track to play, or open local AAC/M4A, MP3, WAV, FLAC and other Windows-supported audio. Paste a YouTube Music playlist URL into Search to browse its songs. Home loads online recommendations when selected; startup restores the local session without starting playback or blocking on the network. The queue, shuffle/repeat, volume, seeking, offline downloads, local playlists, liked songs, history and LRCLIB lyrics are available from the window. Windows media controls expose metadata and transport actions.
 
 Use the shuffle symbol beside a collection's Play button to start at a random song. Click an artist name below a song or in the player to open their profile, with artwork and Songs, Releases & more, and About tabs. Profile details come from YouTube Music when available.
 

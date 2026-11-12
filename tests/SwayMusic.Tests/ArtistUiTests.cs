@@ -22,14 +22,36 @@ internal static class ArtistUiTests
         try
         {
             window.Show(); Await(model.InitializeAsync()); window.Width = 1280; window.Height = 800; Flush();
-            model.Tracks.Add(new(new Track("song-before", "Song before navigation", "Fixture Artist", Artists: [new("Fixture Artist", "UC_fixture")])));
+            model.Tracks.Add(new(new Track("song-before-click", "Song before navigation", "Fixture Artist", Artists: [new("Fixture Artist", "UC_fixture")])));
             Flush();
+            var tracks = window.FindControl<ListBox>("TrackList")!;
+            tracks.SelectedIndex = 0; Flush();
+            Check(model.Player.Queue.Count == 0, "selection alone does not start playback");
+            var action = tracks.GetVisualDescendants().OfType<Button>().First(button => button.Tag is TrackRow);
+            Click(window, action);
+            Check(model.Player.Queue.Count == 0, "song action button does not start playback");
+            tracks.ContextMenu!.Close(); Flush();
+            Click(window, tracks.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == "Song before navigation"), MouseButton.Right);
+            Check(model.Player.Queue.Count == 0, "right-clicking a song opens actions without starting playback");
+            tracks.ContextMenu.Close(); Flush();
+            Click(window, tracks.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == "Song before navigation"));
+            try { Await(((AsyncCommand)model.PlaySelectedCommand).RunningTask); } catch (ArgumentException) { }
+            Check(model.Player.CurrentTrack?.Id == "song-before-click", "one click on a song starts that song");
+            model.Player.RestoreQueue([]); Flush();
             var link = window.FindControl<ListBox>("TrackList")!.GetVisualDescendants().OfType<Button>()
                 .First(button => button.Tag is ArtistReference { Id: "UC_fixture" });
             Click(window, link); Wait(() => model.IsArtistPage && !model.Busy);
             Check(model.PageTitle == "Fixture Artist" && model.HasArtistDescription && model.ArtistStats.Contains("monthly listeners"), "artist link opens the detailed artist profile");
             Check(handler.SearchCount == 0 && model.Player.Queue.Count == 0, "artist link uses its ID without searching or starting playback");
             Check(model.Tracks.Count == 3 && model.HasArtistCatalog, "artist page shows songs and browsable releases");
+            Click(window, window.FindControl<ListBox>("ArtistTrackList")!.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == "Second song"));
+            try { Await(((AsyncCommand)model.PlaySelectedCommand).RunningTask); } catch (ArgumentException) { }
+            Check(model.Player.Queue.Count == 3 && model.Player.CurrentIndex == 1, "one click on an artist song starts the clicked row in its collection");
+            Click(window, window.FindControl<ListBox>("QueueList")!.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == "Third song"));
+            Await(model.Player.StopAsync());
+            Check(model.Player.Queue.Count == 3 && model.Player.CurrentIndex == 2, "one click in the queue starts that entry without replacing the queue");
+            model.Player.RestoreQueue([]); Flush();
+            model.DismissStatusCommand.Execute(null); Flush();
             Wait(() => model.ArtistArtwork is not null);
             Check(model.ArtistCatalog[0].Artwork is null, "catalog artwork stays deferred until the releases tab opens");
             Capture(window, "sway-artist-profile.png");
@@ -69,11 +91,11 @@ internal static class ArtistUiTests
         while (!condition()) { if (time.Elapsed.TotalSeconds > 15) throw new TimeoutException("Artist UI did not complete"); Flush(); Thread.Sleep(1); }
         Flush();
     }
-    private static void Click(Window window, Control control)
+    private static void Click(Window window, Control control, MouseButton button = MouseButton.Left)
     {
         control.BringIntoView(); Flush();
         var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseMove(point, RawInputModifiers.None); window.MouseDown(point, MouseButton.Left, RawInputModifiers.None); window.MouseUp(point, MouseButton.Left, RawInputModifiers.None); Flush();
+        window.MouseMove(point, RawInputModifiers.None); window.MouseDown(point, button, RawInputModifiers.None); window.MouseUp(point, button, RawInputModifiers.None); Flush();
     }
     private static void Capture(Window window, string name)
     {

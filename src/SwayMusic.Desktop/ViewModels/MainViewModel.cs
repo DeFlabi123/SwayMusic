@@ -338,7 +338,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void ShowLocal(string kind)
     {
-        SetPage(kind, kind switch { "likes" => "Liked songs", "history" => "Listening history", "queue" => "Playback queue", _ => "Downloads" }, "Double-click to play. Right-click a song for more actions.");
+        SetPage(kind, kind switch { "likes" => "Liked songs", "history" => "Listening history", "queue" => "Playback queue", _ => "Downloads" }, "Click a song to play. Right-click for more actions.");
         ShowTracksFor(kind switch
         {
             "likes" => _library.State.LikedTracks,
