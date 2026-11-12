@@ -114,6 +114,7 @@ public static class HeadlessTests
             AccountUiTests.Run(Path.Combine(directory, "account-ui"));
             AccountLibraryUiTests.Run(Path.Combine(directory, "account-library"));
             ArtistUiTests.Run(Path.Combine(directory, "artist-ui"));
+            ArtworkTests.Run(Path.Combine(directory, "artwork"));
             string screenshot = Path.GetFullPath(Path.Combine("docs", "screenshot.png"));
             Directory.CreateDirectory(Path.GetDirectoryName(screenshot)!);
             CaptureCleanStartup(Path.Combine(directory, "preview"), screenshot);

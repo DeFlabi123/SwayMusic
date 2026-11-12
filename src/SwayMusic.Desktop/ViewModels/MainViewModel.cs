@@ -26,6 +26,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private DownloadService _downloads;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _accountOperations = new(1, 1);
+    private readonly SemaphoreSlim _rowArtworkOperations = new(4, 4);
     private Task? _initializationTask;
     private readonly List<AsyncCommand> _commands = [];
     private readonly HashSet<Task> _backgroundTasks = [];
@@ -45,6 +46,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private BrowseItem? _selectedBrowseItem;
     private LocalPlaylist? _selectedPlaylist;
     private Bitmap? _artwork;
+    private string? _artworkTrackId, _artworkUrl;
     private TimeSpan _restoredPosition;
     private bool _restoreSeekPending, _sessionRestored;
 
@@ -681,11 +683,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             RefreshDesignPage();
         }
         var track = Player.CurrentTrack;
+        if (_artworkTrackId != track?.Id || _artworkUrl != track?.ThumbnailUrl)
+        {
+            _artworkTrackId = track?.Id; _artworkUrl = track?.ThumbnailUrl;
+            var previous = Artwork; Artwork = null; previous?.Dispose();
+            TrackBackground(LoadArtworkAsync(track));
+        }
         if (track is not null && _lastTrackId != track.Id && Player.State == PlayerState.Playing)
         {
             _lastTrackId = track.Id;
             TrackBackground(RecordTrackAsync(track));
-            TrackBackground(LoadArtworkAsync(track.ThumbnailUrl));
             if (ShowLyrics || IsLyricsPanel) TrackBackground(FetchLyricsAsync());
         }
         if (_restoreSeekPending && Player.State == PlayerState.Playing)
@@ -716,7 +723,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally { _backgroundTasks.Remove(task); }
     }
 
-    private async Task LoadArtworkAsync(string? url)
+    private async Task LoadArtworkAsync(Track? track)
     {
         _artworkRequest?.Cancel(); _artworkRequest?.Dispose();
         _artworkRequest = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -724,29 +731,28 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Bitmap? bitmap = null;
         try
         {
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https")
-            {
-                using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
-                response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength is > 2 * 1024 * 1024) return;
-                using var source = await response.Content.ReadAsStreamAsync(token);
-                using var memory = new MemoryStream();
-                byte[] buffer = new byte[16384];
-                int count;
-                while ((count = await source.ReadAsync(buffer, token)) > 0)
-                {
-                    if (memory.Length + count > 2 * 1024 * 1024) return;
-                    await memory.WriteAsync(buffer.AsMemory(0, count), token);
-                }
-                memory.Position = 0;
-                bitmap = await Task.Run(() => Bitmap.DecodeToWidth(memory, 384), token);
-            }
+            if (track is not null) bitmap = await ArtworkLoader.LoadAsync(_http, track, 384, token);
             token.ThrowIfCancellationRequested();
             var old = Artwork; Artwork = bitmap; bitmap = null; old?.Dispose();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is HttpRequestException or IOException or ArgumentException) { }
         finally { bitmap?.Dispose(); }
+    }
+
+    public Task<Bitmap?> LoadTrackCoverAsync(Track track, CancellationToken cancellationToken)
+    {
+        var loading = LoadTrackCoverCoreAsync(track, cancellationToken);
+        TrackBackground(loading);
+        return loading;
+    }
+
+    private async Task<Bitmap?> LoadTrackCoverCoreAsync(Track track, CancellationToken cancellationToken)
+    {
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await _rowArtworkOperations.WaitAsync(request.Token);
+        try { return await ArtworkLoader.LoadAsync(_http, track, 96, request.Token); }
+        finally { _rowArtworkOperations.Release(); }
     }
 
     private void UpdateTimer() { if (_visible && Player.State == PlayerState.Playing) _positionTimer.Start(); else _positionTimer.Stop(); }
@@ -814,7 +820,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ClearHomeCards();
             _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _music.Dispose(); _http.Dispose();
             _pageRequest?.Dispose(); _artworkRequest?.Dispose(); _lyricsRequest?.Dispose(); _accountOperations.Dispose(); _lifetime.Dispose();
-            _accountLibraryLifetime.Dispose(); _cloudOperations.Dispose();
+            _accountLibraryLifetime.Dispose(); _cloudOperations.Dispose(); _rowArtworkOperations.Dispose();
         }
     }
 }

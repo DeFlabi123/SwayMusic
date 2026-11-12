@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.VisualTree;
 using Avalonia.Media.Imaging;
 using SwayMusic.Core;
 using SwayMusic.Core.Storage;
@@ -37,6 +38,8 @@ internal static class AccountLibraryUiTests
             Check(view.Model.Playlists.Any(p => p.IsRemote && p.Name == "Created cloud"), "signed-in create is a remote playlist");
             Open(view.Model.ArtistsCommand);
             Check(view.Model.IsArtists && view.Model.ShowBrowse && view.Model.BrowseItems.Single().Title == "Cloud artist", "Artists navigation shows subscribed artists");
+            ArtworkTests.Wait(() => view.Window.FindControl<ListBox>("BrowseList")!.GetVisualDescendants().OfType<SwayMusic.Desktop.Controls.TrackCover>()
+                .Any(cover => cover.Item?.Id == "UC_artist" && cover.Source is not null));
             using (var frame = view.Window.CaptureRenderedFrame())
             {
                 var preview = Path.GetFullPath("docs/sway-artists.png");

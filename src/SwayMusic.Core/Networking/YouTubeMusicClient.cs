@@ -501,7 +501,9 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
     private static string? Thumbnail(JsonElement renderer, int maximumWidth = 600)
     {
         string? result = null;
+        string? larger = null;
         var bestWidth = -1;
+        var smallestLargerWidth = int.MaxValue;
         void Visit(JsonElement node, int depth)
         {
             if (depth > 8) return;
@@ -511,12 +513,16 @@ public sealed partial class YouTubeMusicClient(HttpClient http, HttpClient? publ
             {
                 var widthNode = At(node, "width");
                 var width = widthNode.ValueKind == JsonValueKind.Number && widthNode.TryGetInt32(out var number) ? number : 0;
-                if (width >= bestWidth && width <= maximumWidth && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https") { result = url; bestWidth = width; }
+                if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https")
+                {
+                    if (width >= bestWidth && width <= maximumWidth) { result = url; bestWidth = width; }
+                    else if (width > maximumWidth && width < smallestLargerWidth) { larger = url; smallestLargerWidth = width; }
+                }
             }
             foreach (var property in node.EnumerateObject()) Visit(property.Value, depth + 1);
         }
         Visit(At(renderer, "thumbnail"), 0);
-        return result;
+        return result ?? larger;
     }
 
     private sealed class LimitedReadStream(Stream inner, long maximum) : Stream

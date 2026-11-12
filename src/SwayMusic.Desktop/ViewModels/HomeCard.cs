@@ -7,35 +7,30 @@ public sealed class HomeCard(Track track) : ObservableObject, IDisposable
 {
     private Bitmap? _artwork;
     private bool _disposed;
+    private readonly CancellationTokenSource _lifetime = new();
     public Track Track { get; } = track;
     public string Title => Track.Title;
     public string Artist => Track.Artist;
     public Bitmap? Artwork { get => _artwork; private set => Set(ref _artwork, value); }
     public async Task LoadAsync(HttpClient http, CancellationToken ct)
     {
-        if (!Uri.TryCreate(Track.ThumbnailUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https") return;
+        if (_disposed) return;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         Bitmap? bitmap = null;
         try
         {
-            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
-            response.EnsureSuccessStatusCode();
-            if (response.Content.Headers.ContentLength is > 2 * 1024 * 1024) return;
-            using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var data = new MemoryStream();
-            byte[] buffer = new byte[16384]; int count;
-            while ((count = await stream.ReadAsync(buffer, ct)) > 0)
-            {
-                if (data.Length + count > 2 * 1024 * 1024) return;
-                await data.WriteAsync(buffer.AsMemory(0, count), ct);
-            }
-            data.Position = 0;
-            bitmap = await Task.Run(() => Bitmap.DecodeToWidth(data, 256), ct);
-            ct.ThrowIfCancellationRequested();
-            if (!_disposed) { Artwork = bitmap; bitmap = null; }
+            bitmap = await ArtworkLoader.LoadAsync(http, Track, 256, request.Token);
+            request.Token.ThrowIfCancellationRequested();
+            if (!_disposed) { var old = Artwork; Artwork = bitmap; bitmap = null; old?.Dispose(); }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is HttpRequestException or IOException or ArgumentException or NotSupportedException) { }
         finally { bitmap?.Dispose(); }
     }
-    public void Dispose() { _disposed = true; Artwork?.Dispose(); Artwork = null; }
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true; _lifetime.Cancel(); _lifetime.Dispose();
+        Artwork?.Dispose(); Artwork = null;
+    }
 }

@@ -3,6 +3,7 @@ using SwayMusic.Tests;
 
 try
 {
+    if (args.Contains("--artwork-live")) { ArtworkTests.Live(); return 0; }
     if (args.Contains("--artist-live")) { await ArtistTests.LiveAsync(); return 0; }
     if (args.Contains("--account-library-live")) { await AccountLibraryTests.LiveAsync(); return 0; }
     if (args.Contains("--browser-login-smoke"))

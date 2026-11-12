@@ -205,8 +205,8 @@ public sealed partial class MainViewModel
         {
             var card = new HomeCard(track);
             HomeCards.Add(card);
-            // Covers are fetched only after an explicit Home request, not during session restore.
-            if (_pageRequest is { IsCancellationRequested: false } request) TrackBackground(card.LoadAsync(_http, request.Token));
+            // Fetch visible covers asynchronously, including the history-backed startup cards.
+            TrackBackground(card.LoadAsync(_http, _pageRequest is { IsCancellationRequested: false } request ? request.Token : _lifetime.Token));
         }
         OnPropertyChanged(nameof(ShowHomeCards)); OnPropertyChanged(nameof(HomeSectionTitle));
     }

@@ -32,6 +32,8 @@ public static class NetworkTests
         Check(page.Tracks[0].Artist == "An artist" && page.Tracks[0].Album == "An album", "artist and album endpoint metadata");
         Check(page.Tracks[0].Duration == TimeSpan.FromSeconds(222), "track duration");
         Check(page.Tracks[0].ThumbnailUrl == "https://lh3.googleusercontent.com/a", "nested thumbnail renderer");
+        using var largeArtwork = JsonDocument.Parse(fixture.Replace("\"width\":120", "\"width\":1200", StringComparison.Ordinal));
+        Check(YouTubeMusicClient.ParsePage(largeArtwork.RootElement).Tracks[0].ThumbnailUrl == "https://lh3.googleusercontent.com/a", "large-only artwork is retained for downsampling");
         Check(page.Continuation == "next_page", "continuation extraction");
         Check(page.Items is { Count: 1 } && page.Items[0].Id == "VLplaylist", "browse item extraction");
         Check(YouTubeMusicClient.ParseDuration("1:02:03") == TimeSpan.FromSeconds(3723), "hour duration");

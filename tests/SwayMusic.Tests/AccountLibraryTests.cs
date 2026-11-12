@@ -17,6 +17,7 @@ internal static class AccountLibraryTests
         using var client = new YouTubeMusicClient(http) { SessionCookie = "SAPISID=fixture", AuthUser = 2, DataSyncId = "fixture-channel" };
         var library = await client.GetAccountLibraryAsync();
         Check(library.LikedSongs.Count == 2 && library.Artists.Count == 1 && library.Playlists.Count == 2, "all collections and song continuation");
+        Check(library.Artists[0].ThumbnailUrl == "https://images.example/collection.png", "artist collection retains its photo URL");
         Check(library.Playlists[0].CanEdit && !library.Playlists[1].CanEdit, "source EDIT-menu ownership detection");
         Check(library.LikedSongs[0].PlaylistSetVideoId == "entry-1", "playlist entry identity");
         await client.SetVideoLikeAsync("abcdefghijk", false);
@@ -66,6 +67,8 @@ internal static class AccountLibraryTests
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            if (request.Method == HttpMethod.Get)
+                return new(HttpStatusCode.OK) { Content = new ByteArrayContent(File.ReadAllBytes("src/SwayMusic.Desktop/Assets/sway.png")) };
             string path = request.RequestUri!.AbsolutePath.Split("/v1/")[1];
             string json = await request.Content!.ReadAsStringAsync(ct);
             Requests.Enqueue((path, json)); Started.TrySetResult();
@@ -111,6 +114,7 @@ internal static class AccountLibraryTests
     {
         ["musicTwoRowItemRenderer"] = new JsonObject
         {
+            ["thumbnail"] = new JsonObject { ["musicThumbnailRenderer"] = new JsonObject { ["thumbnail"] = new JsonObject { ["thumbnails"] = new JsonArray(new JsonObject { ["url"] = "https://images.example/collection.png", ["width"] = 256 }) } } },
             ["title"] = new JsonObject { ["runs"] = new JsonArray(new JsonObject { ["text"] = title }) },
             ["navigationEndpoint"] = new JsonObject { ["browseEndpoint"] = new JsonObject { ["browseId"] = id, ["browseEndpointContextSupportedConfigs"] = new JsonObject { ["browseEndpointContextMusicConfig"] = new JsonObject { ["pageType"] = type } } } },
             ["menu"] = new JsonObject { ["menuRenderer"] = new JsonObject { ["items"] = editable ? new JsonArray(new JsonObject { ["menuNavigationItemRenderer"] = new JsonObject { ["icon"] = new JsonObject { ["iconType"] = "EDIT" } } }) : new JsonArray() } }
