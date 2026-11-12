@@ -95,15 +95,16 @@ public partial class OrbitView : UserControl
         double width = Bounds.Width > 0 ? Bounds.Width : host?.ClientSize.Width ?? 1280;
         double height = Bounds.Height > 0 ? Bounds.Height : host?.ClientSize.Height ?? 800;
         Grid.SetColumnSpan(DiscColumn, _model.OrbitShowLyrics ? 1 : 2);
-        double disc = Math.Clamp(Math.Min(width * (_model.OrbitShowLyrics ? 0.35 : 0.7), (height - 270) * 0.85), 180, 520);
-        OrbitDisc.Width = disc; OrbitDisc.Height = disc; DiscColumn.Width = disc;
+        double disc = Math.Clamp(Math.Min(width * (_model.OrbitShowLyrics ? 0.35 : 0.7), (height - 330) * 0.85), 180, 520);
+        OrbitDisc.Width = disc; OrbitDisc.Height = disc;
+        DiscColumn.Width = Math.Max(disc, Math.Min(340, width * 0.36));
         OrbitMetadata.Margin = new Thickness(disc * 0.1, 8, 0, 0);
         double font = Math.Clamp(height * 0.041, 24, 40);
         foreach (var line in new[] { LyricBefore2, LyricBefore, LyricAfter, LyricAfter2 }) line.FontSize = font;
         LyricNow.FontSize = font * 1.22;
         PlainLyricsScroll.MaxHeight = Math.Max(100, height - 280);
         OrbitLayout.Margin = new Thickness(width < 1000 ? 28 : 48, 24, width < 1000 ? 28 : 48, 26);
-        OrbitAmbientProgress.Margin = new Thickness(width < 1000 ? 28 : 48, 0, width < 1000 ? 28 : 48, 9);
+        OrbitAmbientProgressHost.Width = Math.Clamp(width * 0.58, 240, 840);
         OrbitScene.ColumnSpacing = width < 1000 ? 24 : 44;
     }
     internal void HideControlsIfIdle()
