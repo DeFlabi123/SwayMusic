@@ -40,6 +40,7 @@ jobs:
       - name: Build and test
         shell: pwsh
         run: |
+          ./scripts/Test-ReleaseSigning.ps1
           ./scripts/Build.ps1 -Test -Headless
           git restore -- docs/screenshot.png docs/sway-account-login.png
       - name: Create installer and authenticated update packages

@@ -6,6 +6,7 @@ param(
     [switch]$RequireWindowsSigning
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Update-Signing.ps1')
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $projectRoot
 try {
@@ -14,11 +15,9 @@ try {
     $privatePem = if ($env:UPDATE_SIGNING_PRIVATE_KEY) { $env:UPDATE_SIGNING_PRIVATE_KEY }
         elseif (Test-Path -LiteralPath $PrivateKeyPath) { [IO.File]::ReadAllText($PrivateKeyPath) }
         else { throw 'Set the UPDATE_SIGNING_PRIVATE_KEY GitHub Actions secret, or run New-UpdateSigningKey.ps1 locally.' }
-    $key = [Security.Cryptography.ECDsa]::Create()
+    $publicPem = [IO.File]::ReadAllText((Join-Path $projectRoot 'src\SwayMusic.Desktop\Updates\update-public-key.pem'))
+    $key = Import-SwayUpdateSigningKey -PrivatePem $privatePem -PublicPem $publicPem
     try {
-        $key.ImportFromPem($privatePem)
-        $publicPem = [IO.File]::ReadAllText((Join-Path $projectRoot 'src\SwayMusic.Desktop\Updates\update-public-key.pem'))
-        if ($key.ExportSubjectPublicKeyInfoPem().Trim() -ne $publicPem.Trim()) { throw 'The release signing key does not match the public key embedded in this source.' }
         if ($RequireWindowsSigning -and !$env:VPK_SIGN_TEMPLATE -and !$env:VPK_AZURE_TRUSTED_SIGN_FILE) {
             throw 'Windows signing is required: configure VPK_SIGN_TEMPLATE or VPK_AZURE_TRUSTED_SIGN_FILE.'
         }
