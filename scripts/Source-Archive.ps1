@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $archivePath = Join-Path $projectRoot 'artifacts\SwayMusic-Windows-source.zip'
-$sources = @('src','tests','docs','design','scripts','licenses','LICENSE','README.md','FEATURES.md','PROGRESS.md','THIRD-PARTY-NOTICES.md','Directory.Build.props','global.json','SwayMusic.slnx','.gitignore')
+$sources = @('src','tests','docs','design','scripts','licenses','.github','.config','LICENSE','README.md','FEATURES.md','PROGRESS.md','RELEASE_NOTES.md','THIRD-PARTY-NOTICES.md','Directory.Build.props','global.json','SwayMusic.slnx','.gitignore')
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 New-Item -ItemType Directory -Path (Join-Path $projectRoot 'artifacts') -Force | Out-Null

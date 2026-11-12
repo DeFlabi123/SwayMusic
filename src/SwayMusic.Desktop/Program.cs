@@ -1,5 +1,6 @@
 using Avalonia;
 using System.Runtime.InteropServices;
+using Velopack;
 
 namespace SwayMusic.Desktop;
 
@@ -8,6 +9,7 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
         if (args is ["--verify-release", _])
         {
             // Verification uses an isolated temporary library and must not activate a running user's window.

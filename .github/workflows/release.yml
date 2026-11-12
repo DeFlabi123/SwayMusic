@@ -1,0 +1,98 @@
+name: Windows installer release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (for example 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Resolve version and check signing configuration
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_REF: ${{ github.ref }}
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+        run: |
+          $version = if ($env:RELEASE_REF.StartsWith('refs/tags/v')) { $env:RELEASE_REF.Substring(11) } else { $env:INPUT_VERSION }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Use a stable version tag such as v1.0.0.' }
+          if (!$env:UPDATE_SIGNING_PRIVATE_KEY) { throw 'Add the UPDATE_SIGNING_PRIVATE_KEY repository secret before building a release. See docs/updates.md.' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Build and test
+        shell: pwsh
+        run: |
+          ./scripts/Build.ps1 -Test -Headless
+          git restore -- docs/screenshot.png docs/sway-account-login.png
+      - name: Create installer and authenticated update packages
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VPK_SIGN_TEMPLATE: ${{ secrets.WINDOWS_SIGN_TEMPLATE }}
+          REQUIRE_WINDOWS_SIGNING: ${{ vars.REQUIRE_WINDOWS_SIGNING }}
+        run: |
+          ./scripts/Pack-Release.ps1 -Version $env:RELEASE_VERSION -RequireWindowsSigning:($env:REQUIRE_WINDOWS_SIGNING -eq 'true')
+          ./scripts/Verify-Release.ps1 -Directory artifacts/SwayMusic-win-x64
+          if (!$env:VPK_SIGN_TEMPLATE) { 'Windows Authenticode signing is not configured. These are test release assets.' >> $env:GITHUB_STEP_SUMMARY }
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: SwayMusic-${{ env.RELEASE_VERSION }}-win-x64
+          path: artifacts/installer/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download build artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh run download $env:RUN_ID --dir release-assets
+          if ($LASTEXITCODE) { throw 'Could not download the tested release artifacts.' }
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          $files = @(Get-ChildItem -LiteralPath release-assets -File -Recurse)
+          foreach ($required in @('SwayMusic-Setup.exe','sway-update.json','sway-update.sig','releases.win-x64-stable.json','SHA256SUMS.txt','SwayMusic-Windows-source.zip')) {
+            if (@($files | Where-Object Name -eq $required).Count -ne 1) { throw "Missing or duplicate asset: $required" }
+          }
+          if (@($files | Where-Object Name -like '*-full.nupkg').Count -ne 1) { throw 'Missing full update package.' }
+          gh release create $env:RELEASE_TAG --draft --title "SwayMusic $env:RELEASE_TAG" --notes-file RELEASE_NOTES.md --target $env:RELEASE_COMMIT
+          if ($LASTEXITCODE) { throw 'Could not create draft release. An existing release will not be overwritten.' }
+          gh release upload $env:RELEASE_TAG @($files.FullName)
+          if ($LASTEXITCODE) { throw 'Release upload failed. Leave the draft unpublished until all assets are uploaded.' }
+          "Draft release created. Verify the installer before publishing: https://github.com/$env:GH_REPO/releases" >> $env:GITHUB_STEP_SUMMARY

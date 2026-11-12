@@ -3,6 +3,7 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $licenseDirectory = Join-Path $projectRoot 'licenses'
 New-Item -ItemType Directory -Force -Path $licenseDirectory | Out-Null
 $notices = @(
+    @{ Name='Velopack-MIT.txt'; Url='https://raw.githubusercontent.com/velopack/velopack/92d6a1c91716729d449034df5c50307dcce39493/LICENSE' },
     @{ Name='Avalonia-MIT.txt'; Url='https://raw.githubusercontent.com/AvaloniaUI/Avalonia/cf8e564674700348947e93ab19105f27afe859a9/licence.md' },
     @{ Name='NAudio-MIT.txt'; Url='https://raw.githubusercontent.com/naudio/NAudio/4f8889e2bd34c3978a25652c6c172fa1502ccba3/LICENSE' },
     @{ Name='MicroCom-MIT.txt'; Url='https://raw.githubusercontent.com/kekekeks/MicroCom/76785efcafd91b5902fd19dd11145f6dd655b7b4/LICENSE' },

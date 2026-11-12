@@ -112,6 +112,7 @@ public static class HeadlessTests
             TestShutdownDuringInitialization(Path.Combine(directory, "startup-close"));
             DesignTests.Run(Path.Combine(directory, "design"));
             AccountUiTests.Run(Path.Combine(directory, "account-ui"));
+            UpdateUiTests.Run(Path.Combine(directory, "updates-ui"));
             AccountLibraryUiTests.Run(Path.Combine(directory, "account-library"));
             ArtistUiTests.Run(Path.Combine(directory, "artist-ui"));
             ArtworkTests.Run(Path.Combine(directory, "artwork"));

@@ -1,4 +1,4 @@
-param([switch]$SkipTools, [switch]$Archive)
+param([switch]$SkipTools, [switch]$Archive, [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.0.0')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $projectRoot
@@ -21,7 +21,9 @@ try {
             if (!$running.WaitForExit(15000)) { throw 'SwayMusic did not close cleanly. Close its window before publishing again.' }
         }
     }
-    & $dotnetCommand publish src\SwayMusic.Desktop\SwayMusic.Desktop.csproj -c Release -r win-x64 --self-contained true --output $publishDirectory --packages .nuget\packages -p:DebugType=None -p:DebugSymbols=false
+    if ([IO.Path]::GetFullPath($publishDirectory) -ne [IO.Path]::GetFullPath((Join-Path $artifactRoot 'SwayMusic-win-x64'))) { throw 'Unexpected publish directory.' }
+    if (Test-Path -LiteralPath $publishDirectory) { Remove-Item -LiteralPath $publishDirectory -Recurse -Force }
+    & $dotnetCommand publish src\SwayMusic.Desktop\SwayMusic.Desktop.csproj -c Release -r win-x64 --self-contained true --output $publishDirectory --packages .nuget\packages -p:DebugType=None -p:DebugSymbols=false "-p:Version=$Version"
     if ($LASTEXITCODE) { throw 'Publish failed.' }
     Copy-Item -LiteralPath LICENSE,THIRD-PARTY-NOTICES.md,README.md,FEATURES.md,PROGRESS.md -Destination $publishDirectory
     Copy-Item -LiteralPath docs -Destination $publishDirectory -Recurse -Force

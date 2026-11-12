@@ -1,5 +1,13 @@
 # SwayMusic progress
 
+## Installer and in-app updates, 12 November 2026
+
+Implemented Velopack 1.2.161 packaging, per-user installation and Settings update controls. Automatic/Notify only/Manual modes persist across launches. Daily background discovery and verified full downloads use the public GitHub repository; installation is handed off only after queue/library saving succeeds. Application files use SwayMusicDesktop, separate from existing SwayMusic user data. A generated public key is embedded; its private counterpart is stored outside the repository and must be configured as the GitHub Actions secret before release builds can run there. See docs/updates.md.
+
+Verification passed: zero-warning Release build; deterministic cryptographic/download/pending-update fixtures and the existing offline suite; compiled headless Settings bindings, preference persistence, queue preservation and locked-library recovery; native Win32 playback/close smoke; and actionlint validation of the release workflow. The actual setup installed into an isolated artifacts directory, created shortcuts and launched, then the production update service downloaded a locally signed 1.0.1 fixture through simulated GitHub transport and Update.exe upgraded the real 1.0.0 installation. The upgraded native executable launched and closed, and uninstall removed the fixture and registration. Report: artifacts/installer-verification.json. The reviewed update Settings frame is artifacts/updates-settings.png.
+
+The initial installer is a Windows-unsigned test build; update metadata is ECDSA-signed. Windows Authenticode provider configuration and an actual published GitHub release remain deployment steps. Live GitHub transport and a separate clean Windows 10 VM have not been verified. NuGet's current vulnerability check reported no known vulnerable desktop dependencies.
+
 Windows repository: `C:\Users\schmi\Documents\GitHub\SwayMusic`. The supplied Metrolist Android tree remains read-only and its attribution is retained.
 
 Current packaging policy: keep one release folder, `artifacts/SwayMusic-win-x64`, containing the newest self-contained build. Duplicate releases, source/binary archives and temporary test outputs have been removed from artifacts. Publishing reuses this folder and may gracefully close the running workspace app, as authorized by the user. Earlier artifact names and test-log references below describe historical validation outputs.

@@ -12,6 +12,7 @@ using SwayMusic.Core.Networking;
 using SwayMusic.Core.Storage;
 using SwayMusic.Desktop.Playback;
 using SwayMusic.Desktop.Authentication;
+using SwayMusic.Desktop.Updates;
 
 namespace SwayMusic.Desktop.ViewModels;
 
@@ -50,7 +51,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private TimeSpan _restoredPosition;
     private bool _restoreSeekPending, _sessionRestored;
 
-    public MainViewModel(string? dataDirectory = null, IBrowserLoginService? browserLogin = null, HttpMessageHandler? httpHandler = null, bool? autoSyncAccount = null)
+    public MainViewModel(string? dataDirectory = null, IBrowserLoginService? browserLogin = null, HttpMessageHandler? httpHandler = null, bool? autoSyncAccount = null,
+        IAppUpdateService? appUpdates = null)
     {
         _http = new(httpHandler ?? new SocketsHttpHandler
         {
@@ -65,7 +67,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _autoSyncAccount = autoSyncAccount ?? dataDirectory is null;
         _migrateLegacy = dataDirectory is null;
         _credentials = new(dataDirectory);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/1.0");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("SwayMusic/" + AppVersion.Current);
         _music = new(_http) { EnableNativePlayback = true, PlaybackCacheDirectory = Path.Combine(_library.DataDirectory, "player-cache") };
         _lyrics = new(_http, dataDirectory);
         _downloads = new(_http, _library.DataDirectory, 2L * 1024 * 1024 * 1024);
@@ -112,6 +114,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         CancelCommand = new RelayCommand(() => _pageRequest?.Cancel());
         InitializeDesign();
         InitializeCollections();
+        InitializeUpdateCommands(appUpdates ?? (dataDirectory is null ? VelopackUpdateService.Create() : new UnavailableUpdateService()));
     }
 
     private AsyncCommand Async(Func<Task> action)
@@ -242,6 +245,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
             RefreshHomeCards();
             IsReady = true;
+            StartUpdates();
             if (IsSignedIn && _autoSyncAccount) TrackBackground(EnsureAccountLibraryAsync(force: true));
             if (_migrateLegacy) TrackBackground(_music.PrewarmPlaybackAsync(_lifetime.Token));
         }
@@ -818,6 +822,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _positionTimer.Stop();
         _lifetime.Cancel(); _pageRequest?.Cancel(); _artworkRequest?.Cancel(); _lyricsRequest?.Cancel();
         _accountLibraryLifetime.Cancel();
+        _updatesLoopLifetime.Cancel();
+        _updates.Cancel();
+        await _updatesLoop;
         if (_initializationTask is { } initialization) await initialization;
         if (_sessionRestored)
         {
@@ -832,9 +839,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var pending = _commands.Select(command => command.RunningTask).Concat(_backgroundTasks.ToArray()).ToArray();
         try { await Task.WhenAll(pending); }
         catch (Exception) { /* Command failures are already surfaced by their owners. */ }
-        try { if (_initialized) await _library.SaveAsync(); }
+        try { if (_initialized && !_savedForUpdate) await _library.SaveAsync(); }
         finally
         {
+            _updates.Changed -= UpdatesChanged;
+            _updates.Dispose();
+            _updatesLoopLifetime.Dispose();
             Artwork?.Dispose();
             OrbitBackdrop?.Dispose();
             ClearArtistProfile();

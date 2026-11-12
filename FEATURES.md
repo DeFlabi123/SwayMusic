@@ -4,6 +4,8 @@ SwayMusic is an independent Windows port of Metrolist. Its short in-app brand is
 
 ## Implemented
 
+- Per-user Windows installer and in-app Updates settings, with Automatic/Notify only/Manual modes, release notes, progress, cancellation and restart controls. ECDSA-authenticated full packages are discovered from GitHub Releases, verified before SDK use, and reverified before applying after a successful save. Unpackaged/test copies cannot update production. GitHub signing-secret configuration and publishing the first release are deployment steps; see docs/updates.md.
+
 - Orbit opens beside Lyrics at the top right as a fullscreen view inside the existing Sway window. It has circular artwork, a saturated blurred-artwork backdrop, an energetic PCM-driven halo and cover pulse, synced lyric context, centered transport controls, idle chrome and Calm mode. Escape restores the library/window state while playback continues. See docs/orbit.md.
 
 - Native Avalonia window, compiled bindings, virtualized track lists, navigation, keyboard shortcuts and resize support. SwayMusic branding adds local Inter typography, a ribbon application icon, dark/light/system appearance, compact rows, library filtering/sorting, row context menus and an adaptive Queue/Lyrics panel.

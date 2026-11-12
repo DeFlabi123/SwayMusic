@@ -3,6 +3,7 @@ using SwayMusic.Tests;
 
 try
 {
+    if (args is ["--installed-update", var installRoot, var updateFeed]) { await InstalledUpdateTests.RunAsync(installRoot, updateFeed); return 0; }
     if (args.Contains("--lyrics-live")) { await LyricsServiceTests.LiveAsync(); return 0; }
     if (args.Contains("--orbit-live-cover")) { OrbitTests.Standalone(liveCover: true); return 0; }
     if (args.Contains("--orbit-ui")) { OrbitTests.Standalone(); return 0; }
@@ -43,6 +44,7 @@ try
         return 0;
     }
     var watch = Stopwatch.StartNew();
+    await UpdateTests.RunAsync();
     await NetworkTests.RunAsync();
     await NativeResolverTests.RunAsync();
     await AccountNetworkTests.RunAsync();

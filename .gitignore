@@ -8,3 +8,7 @@ tools/*.exe
 .sdk/
 .sdk-cache/
 *.user
+Releases/
+*.pfx
+*.p12
+update-signing-private-key.pem

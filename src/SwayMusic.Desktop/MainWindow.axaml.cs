@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly bool _integrateSystem;
     private WindowsMediaControls? _mediaControls;
     private bool _closing, _closed;
+    private bool _restartForUpdate;
     private bool _orbitActive;
     private WindowState _orbitRestoreState;
     private double _orbitRestoreWidth, _orbitRestoreHeight;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
         OrbitLayer.NextDisplayRequested += (_, _) => MoveOrbitToNextDisplay();
         Opened += OnOpened;
         Closing += OnClosing;
+        _viewModel.UpdateRestartRequested += () => { _restartForUpdate = true; Close(); };
         PropertyChanged += (_, args) =>
         {
             if (args.Property == WindowStateProperty || args.Property == IsVisibleProperty)
@@ -79,10 +81,22 @@ public partial class MainWindow : Window
         _closing = true;
         ExitOrbit();
         if (WindowState == WindowState.Normal) _viewModel.SetWindowSize(Width, Height);
+        bool applyUpdate = _restartForUpdate || _viewModel.ShouldApplyUpdateOnExit;
+        if (applyUpdate)
+        {
+            try { await _viewModel.PrepareUpdateExitAsync(); }
+            catch (Exception ex)
+            {
+                _closing = false; _restartForUpdate = false;
+                _viewModel.ReportError(new IOException("The update was not installed: " + ex.Message, ex));
+                return;
+            }
+        }
         try
         {
             try { _mediaControls?.Dispose(); }
             finally { await _viewModel.DisposeAsync(); }
+            if (applyUpdate) _viewModel.ApplyUpdateAfterExit(_restartForUpdate);
         }
         catch (Exception ex) { _viewModel.ReportError(ex); }
         finally { _closed = true; Close(); }

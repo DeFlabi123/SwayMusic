@@ -16,6 +16,9 @@ public sealed class AppSettings
     public bool SidePanelOpen { get; set; } = true;
     public double WindowWidth { get; set; } = 1280;
     public double WindowHeight { get; set; } = 800;
+    public string UpdateMode { get; set; } = "Automatic";
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+    public DateTimeOffset? NextUpdateCheckUtc { get; set; }
 }
 
 public sealed class LocalPlaylist

@@ -22,7 +22,9 @@
     <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="NAudio.Wasapi" Version="3.3.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <AvaloniaResource Include="Assets\**" />
+    <EmbeddedResource Include="Updates\update-public-key.pem" />
     <Content Include="..\..\tools\*.exe;..\..\tools\*LICENSE*.txt" Link="tools\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="ExcludePublishedDebugSymbols" AfterTargets="ComputeFilesToPublish">
