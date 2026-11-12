@@ -8,6 +8,8 @@ The 64-band halo reads decoded PCM from the existing audio stream, using a 1,024
 
 Synced LRCLIB lyrics show the current line with two surrounding lines on each side. Timing follows playback and seeking. Untimed lyrics remain scrollable; disabled, missing and unavailable lyrics show their real status. The lyrics toggle centers the artwork for a cover-only view. Lookup respects Settings and reuses the existing cache; word-level timestamps are not inferred.
 
+Provider results can contain missing or inconsistently typed durations. These are handled per result, with strong title/artist matching when duration is unavailable; known duration matches remain preferred. A malformed record does not discard the entire search. Failed responses are not cached as missing lyrics, and service errors/timeouts show readable messages rather than JSON diagnostics.
+
 Play/pause, previous/next, shuffle, repeat, volume, seek and queue controls operate the same session. The heart targets the playing song, independently of a selected library row. Controls fade after four idle seconds during playback and reappear with pointer/keyboard interaction. Keyboard focus and the open queue keep controls accessible.
 
 Track information and lyrics use slightly larger typography for viewing from a second screen. A short, centered nine-pixel song progress bar sits above the transport area and remains when controls fade. Both its track and played portion have crisp edges with no blur. It has no thumb or time labels and smoothly follows playback and seeking; the regular seek control remains available on interaction.

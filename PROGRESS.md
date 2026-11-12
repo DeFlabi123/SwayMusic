@@ -6,6 +6,8 @@ Current packaging policy: keep one release folder, `artifacts/SwayMusic-win-x64`
 
 ## Playback startup delay
 
+Lyrics lookup now tolerates null, numeric-string and unusable provider durations without rejecting the complete result list. Safe metadata fallback and friendly error messages are covered by regression fixtures. A live request for the reported song loaded 50 synchronized lyric lines after reproducing a provider result with a null duration.
+
 Orbit now runs inside the existing MainWindow, entered beside Lyrics at the top right. It restores the previous library/window state on exit, uses a pre-blurred cover texture with a dominant-color tint and subtle dithering, and has centered transport glyphs plus a more responsive PCM-driven halo/cover pulse. Headless and native tests cover one native window handle, fullscreen/minimize/restore, lyric controls, playback continuity, centered glyph coordinates and a saturated-red backdrop. The live public red-cover preview is docs/sway-orbit-red-cover.png. See docs/orbit.md.
 
 Visible song/artist-song/queue rows now show cover thumbnails instead of music-note-only cells, including recovery for old tracks without saved image URLs. Cover controls follow the effective viewport and cancel/dispose obsolete requests during scrolling and recycling. Row image concurrency is capped at four. Live Skia rendering confirmed real covers in the song list and queue; the 4,096-song fixture confirms bounded realization and image requests. See docs/sway-song-covers.png.

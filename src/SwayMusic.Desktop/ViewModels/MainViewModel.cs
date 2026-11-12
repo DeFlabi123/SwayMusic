@@ -617,8 +617,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             LyricsText = _lyricDocument is { IsSynced: true } synced ? string.Join(Environment.NewLine, synced.Lines.Select(l => l.Text)) : _lyricDocument?.Text ?? "No lyrics found for this track.";
             UpdatePosition();
         }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { if (!_disposed && _lyricsRequest == request) LyricsText = "Lyrics unavailable. " + error.Message; }
+        catch (OperationCanceledException)
+        {
+            if (!_disposed && _lyricsRequest == request && !token.IsCancellationRequested) LyricsText = "Lyrics took too long to load. Try opening lyrics again.";
+        }
+        catch (Exception) { if (!_disposed && _lyricsRequest == request) LyricsText = "Lyrics are temporarily unavailable. Try opening lyrics again shortly."; }
         finally { UpdateOrbitLyrics(); }
     }
 

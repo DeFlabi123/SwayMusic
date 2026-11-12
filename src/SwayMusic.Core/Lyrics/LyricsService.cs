@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SwayMusic.Core.Storage;
@@ -79,17 +80,25 @@ public sealed partial class LyricsService : IDisposable
             {
                 if (string.IsNullOrWhiteSpace(candidate.SyncedLyrics) && string.IsNullOrWhiteSpace(candidate.PlainLyrics)) continue;
                 double score;
-                if (track.Duration is { } duration && duration > TimeSpan.Zero)
+                if (track.Duration is { } duration && duration > TimeSpan.Zero && candidate.Duration is { } candidateDuration)
                 {
-                    double difference = Math.Abs(candidate.Duration - duration.TotalSeconds);
+                    double difference = Math.Abs(candidateDuration - duration.TotalSeconds);
                     if (difference > 5) continue;
                     score = (string.IsNullOrWhiteSpace(candidate.SyncedLyrics) ? 0 : 10) - difference;
                 }
                 else
                 {
-                    double similarity = (Similarity(title, candidate.TrackName) + Similarity(artist, candidate.ArtistName)) / 2;
+                    double titleSimilarity = Similarity(title, candidate.TrackName), artistSimilarity = Similarity(artist, candidate.ArtistName);
+                    double similarity = (titleSimilarity + artistSimilarity) / 2;
                     if (similarity <= 0.6) continue;
-                    score = similarity + (string.IsNullOrWhiteSpace(candidate.SyncedLyrics) ? 0 : 0.1);
+                    if (track.Duration is { } known && known > TimeSpan.Zero)
+                    {
+                        // Unknown provider durations are usable only with strong name matches,
+                        // and remain behind every candidate with a verified duration match.
+                        if (titleSimilarity < 0.8 || artistSimilarity < 0.8) continue;
+                        score = -20 + similarity + (string.IsNullOrWhiteSpace(candidate.SyncedLyrics) ? 0 : 0.1);
+                    }
+                    else score = similarity + (string.IsNullOrWhiteSpace(candidate.SyncedLyrics) ? 0 : 0.1);
                 }
                 if (score > bestScore) { best = candidate; bestScore = score; }
             }
@@ -110,8 +119,28 @@ public sealed partial class LyricsService : IDisposable
         if (response.Content.Headers.ContentLength > 4 * 1024 * 1024) throw new InvalidDataException("Lyrics response exceeded its size limit.");
         await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
         await using var limited = new SizeLimitedReadStream(stream, 4 * 1024 * 1024);
-        var result = await JsonSerializer.DeserializeAsync<List<Candidate>>(limited, AtomicFile.JsonOptions, timeout.Token).ConfigureAwait(false);
-        return result ?? [];
+        using var document = await JsonDocument.ParseAsync(limited, cancellationToken: timeout.Token).ConfigureAwait(false);
+        if (document.RootElement.ValueKind == JsonValueKind.Null) return [];
+        if (document.RootElement.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Invalid lyrics service response.");
+        var result = new List<Candidate>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            string? Text(string name) => item.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+            var title = Text("trackName"); var artist = Text("artistName");
+            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(artist)) continue;
+            double? duration = null;
+            if (item.TryGetProperty("duration", out var field))
+            {
+                double value;
+                bool valid = field.ValueKind == JsonValueKind.Number ? field.TryGetDouble(out value)
+                    : double.TryParse(Text("duration"), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+                if (valid && double.IsFinite(value) && value > 0) duration = value;
+            }
+            result.Add(new(title, artist, duration, Text("plainLyrics"), Text("syncedLyrics")));
+        }
+        return result;
     }
 
     private LyricsDocument? Remember(string key, CacheEntry entry)
@@ -189,7 +218,7 @@ public sealed partial class LyricsService : IDisposable
     public void Dispose() => _gate.Dispose();
     private sealed record CacheEntry(string? Text, DateTimeOffset FetchedAt);
     private sealed record MemoryEntry(CacheEntry Metadata, LyricsDocument? Document);
-    private sealed record Candidate(string TrackName, string ArtistName, double Duration, string? PlainLyrics, string? SyncedLyrics);
+    private sealed record Candidate(string TrackName, string ArtistName, double? Duration, string? PlainLyrics, string? SyncedLyrics);
 
     private sealed class SizeLimitedReadStream(Stream source, long limit) : Stream
     {

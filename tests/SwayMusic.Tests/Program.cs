@@ -3,6 +3,7 @@ using SwayMusic.Tests;
 
 try
 {
+    if (args.Contains("--lyrics-live")) { await LyricsServiceTests.LiveAsync(); return 0; }
     if (args.Contains("--orbit-live-cover")) { OrbitTests.Standalone(liveCover: true); return 0; }
     if (args.Contains("--orbit-ui")) { OrbitTests.Standalone(); return 0; }
     if (args.Contains("--orbit-audio-ui")) { OrbitTests.Standalone(audio: true); return 0; }
@@ -50,6 +51,7 @@ try
     await BrowserLoginTests.RunAsync();
     Console.WriteLine("PASS API request/authentication, renderer parsing, continuation, retry, stream validation");
     await StorageTests.RunAsync();
+    await LyricsServiceTests.RunAsync();
     await AccountStorageTests.RunAsync();
     Console.WriteLine("PASS persistence, DPAPI, downloads, cache, lyrics");
     await MigrationTests.RunAsync();
