@@ -3,6 +3,10 @@ using SwayMusic.Tests;
 
 try
 {
+    if (args.Contains("--orbit-live-cover")) { OrbitTests.Standalone(liveCover: true); return 0; }
+    if (args.Contains("--orbit-ui")) { OrbitTests.Standalone(); return 0; }
+    if (args.Contains("--orbit-audio-ui")) { OrbitTests.Standalone(audio: true); return 0; }
+    if (args.Contains("--orbit-native")) { OrbitTests.Native(); return 0; }
     if (args.Contains("--artwork-live")) { ArtworkTests.Live(); return 0; }
     if (args.Contains("--artist-live")) { await ArtistTests.LiveAsync(); return 0; }
     if (args.Contains("--account-library-live")) { await AccountLibraryTests.LiveAsync(); return 0; }
@@ -52,10 +56,12 @@ try
     await FragmentedAacTests.RunAsync();
     Console.WriteLine("PASS fragmented AAC packet framing, sparse indexing, seeking, cancellation and bounds");
     await PlaybackTests.RunAsync();
+    AudioSpectrumTests.Run();
     await PrefetchTests.RunAsync();
     Console.WriteLine("PASS queue, shuffle, repeat, cancellation, restore");
     if (args.Contains("--audio"))
     {
+        await AudioSpectrumTests.NativeAsync();
         await PlaybackTests.SmokeAsync();
         await PlaybackTests.AacStreamSmokeAsync();
         await MediaControlsTests.SmokeAsync();

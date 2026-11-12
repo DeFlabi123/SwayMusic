@@ -49,6 +49,7 @@ public sealed partial class MainViewModel
             : !string.IsNullOrWhiteSpace(session.DataSyncId) ? session.DataSyncId.Trim() : session.CookieHeader;
         _cloudKey = session is null ? null : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity + "|" + session.AuthUser)));
         _cloud = new() { AccountKey = _cloudKey ?? "" };
+        OnPropertyChanged(nameof(IsCurrentLiked));
         SyncStatus = session is null ? "Sign in to sync your YouTube Music library." : "Library has not synced yet.";
         IsSyncing = false;
         RefreshPlaylists();
@@ -122,6 +123,7 @@ public sealed partial class MainViewModel
     }
     private void RefreshCloudViews()
     {
+        OnPropertyChanged(nameof(IsCurrentLiked));
         RefreshPlaylists();
         OnPropertyChanged(nameof(ArtistSubscriptionText)); OnPropertyChanged(nameof(CanChangeArtistSubscription));
         if (IsAccountCollection && IsSignedIn) RenderAccountCollection(_pageKind);

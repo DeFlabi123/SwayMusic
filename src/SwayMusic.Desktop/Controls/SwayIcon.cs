@@ -31,7 +31,11 @@ public sealed class SwayIcon : Avalonia.Controls.Shapes.Path
         ["up"] = Geometry.Parse("M5,15 L12,8 L19,15"),
         ["down"] = Geometry.Parse("M5,9 L12,16 L19,9"),
         ["shuffle"] = Geometry.Parse("M3,5 H6 L18,19 H22 M18,15 L22,19 L18,23 M3,19 H6 L18,5 H22 M18,1 L22,5 L18,9"),
-        ["repeat"] = Geometry.Parse("M4,8 V5 H20 L16,1 M20,16 V19 H4 L8,23 M20,5 V10 M4,19 V14")
+        ["repeat"] = Geometry.Parse("M4,8 V5 H20 L16,1 M20,16 V19 H4 L8,23 M20,5 V10 M4,19 V14"),
+        ["fullscreen"] = Geometry.Parse("M3,9 V3 H9 M15,3 H21 V9 M21,15 V21 H15 M9,21 H3 V15"),
+        ["orbit"] = Geometry.Parse("M17,12 A5,5 0 1 1 7,12 A5,5 0 1 1 17,12 M3,16 C-2,9 17,-1 21,6 C26,13 7,24 3,16"),
+        ["monitor"] = Geometry.Parse("M3,3 H21 V17 H3 Z M12,17 V22 M7,22 H17"),
+        ["wave"] = Geometry.Parse("M2,12 C5,2 8,2 12,12 C16,22 19,22 22,12")
     };
     static SwayIcon() => KindProperty.Changed.AddClassHandler<SwayIcon>((icon, _) => icon.Data = Shapes.GetValueOrDefault(icon.Kind, Shapes["music"]));
     public SwayIcon() { Data = Shapes["music"]; }

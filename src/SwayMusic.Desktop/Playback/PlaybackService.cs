@@ -20,6 +20,10 @@ public sealed class PlaybackService : IAsyncDisposable
     private float _volume = 0.8f;
     private long _requestVersion;
     private bool _disposed;
+    private readonly AudioSpectrum _spectrum = new();
+    public bool VisualizationEnabled { get => _spectrum.Enabled; set => _spectrum.Enabled = value; }
+    public void CopySpectrum(Span<float> destination)
+    { if (State == PlayerState.Playing) _spectrum.CopyTo(destination); else destination.Clear(); }
 
     public PlaybackService(Func<Track, CancellationToken, Task<string>> resolver,
         Func<Uri, CancellationToken, Task<Stream>>? streamFactory = null)
@@ -210,6 +214,7 @@ public sealed class PlaybackService : IAsyncDisposable
 
     public async Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default)
     {
+        _spectrum.Clear();
         await _operations.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -384,7 +389,7 @@ public sealed class PlaybackService : IAsyncDisposable
                     originName: exactDuration is null ? "track.m4a" : "track.aac");
             cancellationToken.ThrowIfCancellationRequested();
             player = new WasapiPlayerBuilder().WithEventSync().WithLatency(200).Build();
-            player.Init(reader);
+            player.Init(new SpectrumWaveProvider(reader, _spectrum));
             cancellationToken.ThrowIfCancellationRequested();
         }, cancellationToken);
     }
@@ -430,6 +435,7 @@ public sealed class PlaybackService : IAsyncDisposable
 
     private async ValueTask ReleaseSessionAsync()
     {
+        _spectrum.Clear();
         Session? session;
         lock (_sync)
         {

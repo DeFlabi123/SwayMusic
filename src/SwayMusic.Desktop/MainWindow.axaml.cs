@@ -18,6 +18,11 @@ public partial class MainWindow : Window
     private readonly bool _integrateSystem;
     private WindowsMediaControls? _mediaControls;
     private bool _closing, _closed;
+    private bool _orbitActive;
+    private WindowState _orbitRestoreState;
+    private double _orbitRestoreWidth, _orbitRestoreHeight;
+    private PixelPoint _orbitRestorePosition;
+    internal OrbitView? OrbitView => _orbitActive ? OrbitLayer : null;
 
     public MainWindow() : this(new MainViewModel()) { }
 
@@ -27,12 +32,18 @@ public partial class MainWindow : Window
         _integrateSystem = integrateSystem;
         InitializeComponent();
         DataContext = _viewModel;
+        OrbitLayer.ExitRequested += (_, _) => ExitOrbit();
+        OrbitLayer.FullscreenRequested += (_, _) => WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
+        OrbitLayer.NextDisplayRequested += (_, _) => MoveOrbitToNextDisplay();
         Opened += OnOpened;
         Closing += OnClosing;
         PropertyChanged += (_, args) =>
         {
             if (args.Property == WindowStateProperty || args.Property == IsVisibleProperty)
+            {
                 _viewModel.SetWindowVisible(IsVisible && WindowState != WindowState.Minimized);
+                if (_orbitActive) OrbitLayer.UpdateHostVisibility(IsVisible && WindowState != WindowState.Minimized);
+            }
         };
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Bubble);
         SeekSlider.AddHandler(PointerPressedEvent, SeekPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -66,6 +77,7 @@ public partial class MainWindow : Window
         args.Cancel = true;
         if (_closing) return;
         _closing = true;
+        ExitOrbit();
         if (WindowState == WindowState.Normal) _viewModel.SetWindowSize(Width, Height);
         try
         {
@@ -79,6 +91,32 @@ public partial class MainWindow : Window
     private void SearchKeyDown(object? sender, KeyEventArgs args)
     {
         if (args.Key == Key.Enter) { _viewModel.SearchCommand.Execute(null); args.Handled = true; }
+    }
+    private void OpenOrbitClicked(object? sender, RoutedEventArgs args)
+    {
+        if (_orbitActive) { OrbitLayer.Focus(); return; }
+        _orbitRestoreState = WindowState; _orbitRestoreWidth = Width; _orbitRestoreHeight = Height; _orbitRestorePosition = Position;
+        _orbitActive = true; LibraryView.IsVisible = false; OrbitLayer.IsVisible = true;
+        if (_integrateSystem) WindowState = WindowState.FullScreen;
+        OrbitLayer.Activate(_viewModel);
+    }
+    internal void ExitOrbit()
+    {
+        if (!_orbitActive) return;
+        _orbitActive = false; OrbitLayer.Deactivate(); OrbitLayer.IsVisible = false; LibraryView.IsVisible = true;
+        WindowState = WindowState.Normal;
+        Width = _orbitRestoreWidth; Height = _orbitRestoreHeight; Position = _orbitRestorePosition;
+        WindowState = _orbitRestoreState;
+        _viewModel.SetAvailableWidth(Width); Focus();
+    }
+    private void MoveOrbitToNextDisplay()
+    {
+        var screens = Screens.All; if (screens.Count < 2) return;
+        var current = Screens.ScreenFromWindow(this);
+        int index = screens.ToList().FindIndex(screen => current is not null && screen.Bounds == current.Bounds);
+        var target = screens[(index + 1) % screens.Count];
+        WindowState = WindowState.Normal; Position = target.WorkingArea.Position; WindowState = WindowState.FullScreen;
+        _orbitRestorePosition = target.WorkingArea.Position;
     }
     private static TrackRow? TappedSong(object? sender, TappedEventArgs args)
     {
@@ -187,6 +225,7 @@ public partial class MainWindow : Window
 
     private async void OnWindowKeyDown(object? sender, KeyEventArgs args)
     {
+        if (_orbitActive) return;
         if (!_viewModel.IsReady) return;
         if (args.KeyModifiers == KeyModifiers.Control && args.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); args.Handled = true; return; }
         if (args.KeyModifiers == KeyModifiers.Control && args.Key == Key.O) { await PickFilesAsync(); args.Handled = true; return; }

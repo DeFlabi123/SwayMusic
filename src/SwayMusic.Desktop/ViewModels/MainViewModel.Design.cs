@@ -133,7 +133,7 @@ public sealed partial class MainViewModel
     }
     private void RefreshQueue()
     {
-        if (!IsQueuePanel && !IsQueue) return;
+        if (!IsQueuePanel && !IsQueue && !IsOrbitOpen) return;
         var queue = Player.Queue;
         if (IsQueue && !Tracks.Select(row => row.Track).SequenceEqual(queue))
         {

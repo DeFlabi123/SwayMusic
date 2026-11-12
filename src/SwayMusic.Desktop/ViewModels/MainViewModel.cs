@@ -91,6 +91,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         PreviousCommand = Async(() => Player.PreviousAsync(_lifetime.Token));
         EnqueueCommand = new RelayCommand(() => { if (SelectedTrack is { } row) { Player.Enqueue(row.Track); Status = "Added to queue."; } });
         LikeCommand = Async(LikeAsync);
+        LikeCurrentCommand = Async(() => LikeTrackAsync(Player.CurrentTrack));
         RadioCommand = Async(RadioAsync);
         DownloadCommand = Async(DownloadSelectedAsync);
         RemoveCommand = Async(RemoveAsync);
@@ -498,12 +499,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         await Player.SetQueueAsync(rows.Select(row => row.Track), index, _lifetime.Token);
     }
 
-    private async Task LikeAsync()
+    private Task LikeAsync() => LikeTrackAsync(SelectedTrack?.Track ?? Player.CurrentTrack);
+    private async Task LikeTrackAsync(Track? track)
     {
-        var track = SelectedTrack?.Track ?? Player.CurrentTrack;
         if (track is null) return;
         if (IsSignedIn && YouTubeMusicClient.IsVideoId(track.Id)) { await ToggleCloudLikeAsync(track); return; }
         bool liked = await _library.ToggleLikeAsync(track, _lifetime.Token);
+        OnPropertyChanged(nameof(IsCurrentLiked));
         Status = liked ? "Added to liked songs." : "Removed from liked songs.";
         if (_pageKind == "likes") ShowLocal("likes");
     }
@@ -594,9 +596,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         await Player.SetQueueAsync(tracks, 0, _lifetime.Token);
     }
 
-    private async Task FetchLyricsAsync()
+    private async Task FetchLyricsCoreAsync()
     {
         _lyricDocument = null; ActiveLyric = "";
+        _lyricTrackId = Player.CurrentTrack?.Id;
+        UpdateOrbitLyrics();
         if (Player.CurrentTrack is not { } track) { LyricsText = "Play a song to look up lyrics."; return; }
         if (!FetchLyrics) { LyricsText = "Lyrics lookup is disabled in Settings."; return; }
         _lyricsRequest?.Cancel(); _lyricsRequest?.Dispose();
@@ -608,13 +612,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var document = await _lyrics.GetAsync(track, token);
             token.ThrowIfCancellationRequested();
-            if (_disposed || _lyricsRequest != request) return;
+            if (_disposed || _lyricsRequest != request || Player.CurrentTrack?.Id != track.Id) return;
             _lyricDocument = document;
             LyricsText = _lyricDocument is { IsSynced: true } synced ? string.Join(Environment.NewLine, synced.Lines.Select(l => l.Text)) : _lyricDocument?.Text ?? "No lyrics found for this track.";
             UpdatePosition();
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!_disposed && _lyricsRequest == request) LyricsText = "Lyrics unavailable. " + error.Message; }
+        finally { UpdateOrbitLyrics(); }
     }
 
     private async Task SaveAccountAsync()
@@ -683,17 +688,27 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             RefreshDesignPage();
         }
         var track = Player.CurrentTrack;
+        OnPropertyChanged(nameof(HasCurrentTrack)); OnPropertyChanged(nameof(IsCurrentLiked)); OnPropertyChanged(nameof(NowAlbum));
+        OnPropertyChanged(nameof(OrbitRepeatOn)); OnPropertyChanged(nameof(OrbitRepeatLabel));
+        if (_lyricTrackId != track?.Id)
+        {
+            _lyricsRequest?.Cancel(); _lyricDocument = null; _lyricTrackId = track?.Id;
+            LyricsText = track is null ? "Choose a song in Sway to begin." : "Open lyrics to look up this track.";
+            UpdateOrbitLyrics();
+            if (IsOrbitOpen || ShowLyrics || IsLyricsPanel) TrackBackground(FetchLyricsAsync());
+        }
         if (_artworkTrackId != track?.Id || _artworkUrl != track?.ThumbnailUrl)
         {
             _artworkTrackId = track?.Id; _artworkUrl = track?.ThumbnailUrl;
             var previous = Artwork; Artwork = null; previous?.Dispose();
+            UpdateOrbitPalette();
             TrackBackground(LoadArtworkAsync(track));
         }
         if (track is not null && _lastTrackId != track.Id && Player.State == PlayerState.Playing)
         {
             _lastTrackId = track.Id;
             TrackBackground(RecordTrackAsync(track));
-            if (ShowLyrics || IsLyricsPanel) TrackBackground(FetchLyricsAsync());
+            if (ShowLyrics || IsLyricsPanel || IsOrbitOpen) TrackBackground(FetchLyricsAsync());
         }
         if (_restoreSeekPending && Player.State == PlayerState.Playing)
         {
@@ -734,6 +749,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (track is not null) bitmap = await ArtworkLoader.LoadAsync(_http, track, 384, token);
             token.ThrowIfCancellationRequested();
             var old = Artwork; Artwork = bitmap; bitmap = null; old?.Dispose();
+            UpdateOrbitPalette();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is HttpRequestException or IOException or ArgumentException) { }
@@ -755,16 +771,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally { _rowArtworkOperations.Release(); }
     }
 
-    private void UpdateTimer() { if (_visible && Player.State == PlayerState.Playing) _positionTimer.Start(); else _positionTimer.Stop(); }
+    private void UpdateTimer() { if ((_visible || IsOrbitOpen) && Player.State == PlayerState.Playing) _positionTimer.Start(); else _positionTimer.Stop(); }
     private void UpdatePosition()
     {
         if (!_isSeeking) OnPropertyChanged(nameof(PositionSeconds));
         OnPropertyChanged(nameof(PositionText));
-        if ((ShowLyrics || IsLyricsPanel) && _lyricDocument is { IsSynced: true } lyrics)
+        if ((ShowLyrics || IsLyricsPanel || IsOrbitOpen) && _lyricDocument is { IsSynced: true } lyrics)
         {
             int line = lyrics.GetActiveLine(Player.Position);
             ActiveLyric = line >= 0 ? lyrics.Lines[line].Text : "";
         }
+        if (IsOrbitOpen) UpdateOrbitLyrics();
     }
     public void BeginSeek() => _isSeeking = true;
     public async Task EndSeekAsync(TimeSpan position)
@@ -816,6 +833,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             Artwork?.Dispose();
+            OrbitBackdrop?.Dispose();
             ClearArtistProfile();
             ClearHomeCards();
             _lyrics.Dispose(); _downloads.Dispose(); _credentials.Dispose(); _library.Dispose(); _music.Dispose(); _http.Dispose();
